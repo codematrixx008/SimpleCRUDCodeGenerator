@@ -1,66 +1,94 @@
+using Dapper;
 using {{SolutionName}}.Domain.Interfaces;
 using {{SolutionName}}.Domain.Models;
 using {{SolutionName}}.Infrastructure.Data;
-using Microsoft.EntityFrameworkCore;
 
 namespace {{SolutionName}}.Infrastructure.Repositories;
 
 public sealed class {{EntityName}}Repository : I{{EntityName}}Repository
 {
-    private readonly AppDbContext _context;
+    private readonly SqlConnectionFactory _connectionFactory;
 
-    public {{EntityName}}Repository(AppDbContext context)
+    public {{EntityName}}Repository(SqlConnectionFactory connectionFactory)
     {
-        _context = context;
+        _connectionFactory = connectionFactory;
     }
 
     public async Task<IReadOnlyList<{{EntityName}}>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        return await _context.{{EntityPlural}}
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+        const string sql = """
+SELECT
+{{SelectColumnList}}
+FROM {{TableFullName}}
+{{WhereNotDeleted}}
+ORDER BY [{{KeyColumnName}}];
+""";
+
+        using var connection = _connectionFactory.CreateConnection();
+        var items = await connection.QueryAsync<{{EntityName}}>(new CommandDefinition(sql, cancellationToken: cancellationToken));
+        return items.AsList();
     }
 
     public async Task<{{EntityName}}?> GetByIdAsync({{KeyType}} id, CancellationToken cancellationToken = default)
     {
-        return await _context.{{EntityPlural}}
-            .FirstOrDefaultAsync(x => x.{{KeyName}}.Equals(id), cancellationToken);
+        const string sql = """
+SELECT
+{{SelectColumnList}}
+FROM {{TableFullName}}
+WHERE [{{KeyColumnName}}] = @Id{{AndNotDeleted}};
+""";
+
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QueryFirstOrDefaultAsync<{{EntityName}}>(
+            new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
     }
 
     public async Task<{{EntityName}}> CreateAsync({{EntityName}} {{EntityVariable}}, CancellationToken cancellationToken = default)
     {
-        await _context.{{EntityPlural}}.AddAsync({{EntityVariable}}, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
-        return {{EntityVariable}};
+        const string sql = """
+INSERT INTO {{TableFullName}}
+(
+{{InsertColumnList}}
+)
+OUTPUT
+{{OutputInsertedColumnList}}
+VALUES
+(
+{{InsertValueList}}
+);
+""";
+
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QuerySingleAsync<{{EntityName}}>(
+            new CommandDefinition(sql, {{EntityVariable}}, cancellationToken: cancellationToken));
     }
 
     public async Task<bool> UpdateAsync({{EntityName}} {{EntityVariable}}, CancellationToken cancellationToken = default)
     {
-        var exists = await _context.{{EntityPlural}}
-            .AnyAsync(x => x.{{KeyName}}.Equals({{EntityVariable}}.{{KeyName}}), cancellationToken);
+        const string sql = """
+UPDATE {{TableFullName}}
+SET
+{{UpdateSetList}}
+WHERE [{{KeyColumnName}}] = @{{KeyName}}{{AndNotDeleted}};
+""";
 
-        if (!exists)
-        {
-            return false;
-        }
+        using var connection = _connectionFactory.CreateConnection();
+        var affectedRows = await connection.ExecuteAsync(
+            new CommandDefinition(sql, {{EntityVariable}}, cancellationToken: cancellationToken));
 
-        _context.{{EntityPlural}}.Update({{EntityVariable}});
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
+        return affectedRows > 0;
     }
 
     public async Task<bool> DeleteAsync({{KeyType}} id, CancellationToken cancellationToken = default)
     {
-        var {{EntityVariable}} = await _context.{{EntityPlural}}
-            .FirstOrDefaultAsync(x => x.{{KeyName}}.Equals(id), cancellationToken);
+        const string sql = """
+{{DeleteSql}}
+""";
 
-        if ({{EntityVariable}} is null)
-        {
-            return false;
-        }
+        using var connection = _connectionFactory.CreateConnection();
+        var affectedRows = await connection.ExecuteAsync(
+            new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
 
-        _context.{{EntityPlural}}.Remove({{EntityVariable}});
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
+        return affectedRows > 0;
     }
 }

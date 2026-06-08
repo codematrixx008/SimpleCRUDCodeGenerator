@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using CodeGen.Core.Models;
 
@@ -25,8 +24,19 @@ public sealed class TemplateTokenBuilder
             ?? schema.Fields.FirstOrDefault(x => x.Name.Equals("Id", StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"No primary key/Id column found for {entityName}.");
 
-        var createFields = schema.Fields.Where(x => !x.IsKey && !x.IsIdentity && x.IncludeInCreate).ToList();
-        var updateFields = schema.Fields.Where(x => !x.IsKey && !x.IsIdentity && x.IncludeInUpdate).ToList();
+        var allFields = schema.Fields.ToList();
+        var createFields = allFields.Where(x => !x.IsKey && !x.IsIdentity && x.IncludeInCreate).ToList();
+        var updateFields = allFields.Where(x => !x.IsKey && !x.IsIdentity && x.IncludeInUpdate).ToList();
+
+        if (createFields.Count == 0)
+        {
+            throw new InvalidOperationException($"No insertable columns found for {entityName}.");
+        }
+
+        if (updateFields.Count == 0)
+        {
+            throw new InvalidOperationException($"No updateable columns found for {entityName}.");
+        }
 
         return new Dictionary<string, string>
         {
@@ -38,15 +48,23 @@ public sealed class TemplateTokenBuilder
             ["KeyType"] = ToCSharpType(key),
             ["KeyName"] = key.Name,
             ["KeyVariable"] = _naming.ToCamelCase(key.Name),
-            ["ModelProperties"] = BuildProperties(schema.Fields),
-            ["DtoProperties"] = BuildProperties(schema.Fields),
+            ["KeyColumnName"] = GetColumnName(key),
+            ["ModelProperties"] = BuildProperties(allFields),
+            ["DtoProperties"] = BuildProperties(allFields),
             ["CreateDtoProperties"] = BuildProperties(createFields),
             ["UpdateDtoProperties"] = BuildProperties(updateFields),
             ["CreateEntityAssignments"] = BuildCreateAssignments(createFields),
             ["UpdateEntityAssignments"] = BuildUpdateAssignments(updateFields, entityVariable),
-            ["DtoAssignments"] = BuildDtoAssignments(schema.Fields, entityVariable),
-            ["EfEntityConfiguration"] = BuildEfEntityConfiguration(schema, entityName),
-            ["DbSetProperty"] = $"public DbSet<{entityName}> {entityPlural} => Set<{entityName}>();"
+            ["DtoAssignments"] = BuildDtoAssignments(allFields, entityVariable),
+            ["TableFullName"] = BuildTableFullName(schema),
+            ["SelectColumnList"] = BuildSelectColumnList(allFields),
+            ["InsertColumnList"] = BuildInsertColumnList(createFields),
+            ["InsertValueList"] = BuildInsertValueList(createFields),
+            ["OutputInsertedColumnList"] = BuildOutputInsertedColumnList(allFields),
+            ["UpdateSetList"] = BuildUpdateSetList(updateFields, allFields),
+            ["WhereNotDeleted"] = BuildWhereNotDeleted(allFields),
+            ["AndNotDeleted"] = BuildAndNotDeleted(allFields),
+            ["DeleteSql"] = BuildDeleteSql(schema, key, allFields)
         };
     }
 
@@ -87,65 +105,102 @@ public sealed class TemplateTokenBuilder
         return string.Join(Environment.NewLine, fields.Select(field => $"            {field.Name} = {entityVariable}.{field.Name},"));
     }
 
-    private static string BuildEfEntityConfiguration(EntitySchema schema, string entityName)
+    private static string BuildTableFullName(EntitySchema schema)
     {
-        var list = schema.Fields.ToList();
-        var key = list.FirstOrDefault(x => x.IsKey)
-            ?? list.FirstOrDefault(x => x.Name.Equals("Id", StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"No primary key/Id column found for {entityName}.");
-
-        var builder = new StringBuilder();
-
-        builder.AppendLine($"        modelBuilder.Entity<{entityName}>(entity =>");
-        builder.AppendLine("        {");
-
-        if (!string.IsNullOrWhiteSpace(schema.DbTableName))
+        var tableName = string.IsNullOrWhiteSpace(schema.DbTableName) ? schema.EntityName : schema.DbTableName;
+        if (string.IsNullOrWhiteSpace(schema.DbSchemaName))
         {
-            if (!string.IsNullOrWhiteSpace(schema.DbSchemaName))
-            {
-                builder.AppendLine($"            entity.ToTable(\"{Escape(schema.DbTableName)}\", \"{Escape(schema.DbSchemaName!)}\");");
-            }
-            else
-            {
-                builder.AppendLine($"            entity.ToTable(\"{Escape(schema.DbTableName)}\");");
-            }
+            return QuoteIdentifier(tableName);
         }
 
-        builder.AppendLine($"            entity.HasKey(e => e.{key.Name});");
+        return $"{QuoteIdentifier(schema.DbSchemaName!)}.{QuoteIdentifier(tableName)}";
+    }
 
-        foreach (var field in list)
+    private static string BuildSelectColumnList(IEnumerable<EntityField> fields)
+    {
+        return string.Join("," + Environment.NewLine, fields.Select(field =>
+            $"    {QuoteIdentifier(GetColumnName(field))} AS {QuoteIdentifier(field.Name)}"));
+    }
+
+    private static string BuildInsertColumnList(IEnumerable<EntityField> fields)
+    {
+        return string.Join("," + Environment.NewLine, fields.Select(field =>
+            $"    {QuoteIdentifier(GetColumnName(field))}"));
+    }
+
+    private static string BuildInsertValueList(IEnumerable<EntityField> fields)
+    {
+        return string.Join("," + Environment.NewLine, fields.Select(field =>
+            $"    @{field.Name}"));
+    }
+
+    private static string BuildOutputInsertedColumnList(IEnumerable<EntityField> fields)
+    {
+        return string.Join("," + Environment.NewLine, fields.Select(field =>
+            $"    INSERTED.{QuoteIdentifier(GetColumnName(field))} AS {QuoteIdentifier(field.Name)}"));
+    }
+
+    private static string BuildUpdateSetList(IEnumerable<EntityField> updateFields, IEnumerable<EntityField> allFields)
+    {
+        var setParts = updateFields
+            .Select(field => $"    {QuoteIdentifier(GetColumnName(field))} = @{field.Name}")
+            .ToList();
+
+        var updatedDateField = allFields.FirstOrDefault(IsUpdatedDateColumn);
+        if (updatedDateField is not null)
         {
-            var configParts = new List<string>();
-
-            if (!string.IsNullOrWhiteSpace(field.ColumnName))
-            {
-                configParts.Add($".HasColumnName(\"{Escape(field.ColumnName)}\")");
-            }
-
-            if (field.MaxLength is > 0)
-            {
-                configParts.Add($".HasMaxLength({field.MaxLength.Value.ToString(CultureInfo.InvariantCulture)})");
-            }
-
-            if (IsDecimal(field) && field.Precision is > 0)
-            {
-                var scale = field.Scale ?? 0;
-                configParts.Add($".HasPrecision({field.Precision.Value.ToString(CultureInfo.InvariantCulture)}, {scale.ToString(CultureInfo.InvariantCulture)})");
-            }
-
-            if (!field.IsNullable && IsString(field))
-            {
-                configParts.Add(".IsRequired()");
-            }
-
-            if (configParts.Count > 0)
-            {
-                builder.AppendLine($"            entity.Property(e => e.{field.Name}){string.Concat(configParts)};");
-            }
+            setParts.Add($"    {QuoteIdentifier(GetColumnName(updatedDateField))} = SYSUTCDATETIME()");
         }
 
-        builder.AppendLine("        });");
-        return builder.ToString().TrimEnd();
+        return string.Join("," + Environment.NewLine, setParts);
+    }
+
+    private static string BuildWhereNotDeleted(IEnumerable<EntityField> fields)
+    {
+        var isDeleted = fields.FirstOrDefault(IsDeletedColumn);
+        if (isDeleted is null)
+        {
+            return string.Empty;
+        }
+
+        return $"WHERE {QuoteIdentifier(GetColumnName(isDeleted))} = CAST(0 AS bit)";
+    }
+
+    private static string BuildAndNotDeleted(IEnumerable<EntityField> fields)
+    {
+        var isDeleted = fields.FirstOrDefault(IsDeletedColumn);
+        if (isDeleted is null)
+        {
+            return string.Empty;
+        }
+
+        return $" AND {QuoteIdentifier(GetColumnName(isDeleted))} = CAST(0 AS bit)";
+    }
+
+    private static string BuildDeleteSql(EntitySchema schema, EntityField key, IEnumerable<EntityField> fields)
+    {
+        var allFields = fields.ToList();
+        var tableFullName = BuildTableFullName(schema);
+        var keyColumnName = QuoteIdentifier(GetColumnName(key));
+        var isDeleted = allFields.FirstOrDefault(IsDeletedColumn);
+
+        if (isDeleted is null)
+        {
+            return $"DELETE FROM {tableFullName}{Environment.NewLine}WHERE {keyColumnName} = @Id;";
+        }
+
+        var setParts = new List<string>
+        {
+            $"    {QuoteIdentifier(GetColumnName(isDeleted))} = CAST(1 AS bit)"
+        };
+
+        var updatedDate = allFields.FirstOrDefault(IsUpdatedDateColumn);
+        if (updatedDate is not null)
+        {
+            setParts.Add($"    {QuoteIdentifier(GetColumnName(updatedDate))} = SYSUTCDATETIME()");
+        }
+
+        return $"UPDATE {tableFullName}{Environment.NewLine}SET{Environment.NewLine}{string.Join("," + Environment.NewLine, setParts)}{Environment.NewLine}WHERE {keyColumnName} = @Id AND {QuoteIdentifier(GetColumnName(isDeleted))} = CAST(0 AS bit);";
     }
 
     private static bool RequiresDefaultValue(EntityField field)
@@ -159,10 +214,17 @@ public sealed class TemplateTokenBuilder
         return type is "string" or "nvarchar" or "varchar" or "char" or "nchar" or "text" or "ntext";
     }
 
-    private static bool IsDecimal(EntityField field)
+    private static bool IsUpdatedDateColumn(EntityField field)
     {
-        var type = field.Type.Trim().ToLowerInvariant();
-        return type is "decimal" or "numeric" or "money" or "smallmoney";
+        return field.Name.Equals("UpdatedDate", StringComparison.OrdinalIgnoreCase)
+            || field.Name.Equals("UpdatedAt", StringComparison.OrdinalIgnoreCase)
+            || field.Name.Equals("ModifiedDate", StringComparison.OrdinalIgnoreCase)
+            || field.Name.Equals("ModifiedAt", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDeletedColumn(EntityField field)
+    {
+        return field.Name.Equals("IsDeleted", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ToCSharpType(EntityField field)
@@ -200,8 +262,13 @@ public sealed class TemplateTokenBuilder
         return csharpType;
     }
 
-    private static string Escape(string value)
+    private static string GetColumnName(EntityField field)
     {
-        return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        return string.IsNullOrWhiteSpace(field.ColumnName) ? field.Name : field.ColumnName;
+    }
+
+    private static string QuoteIdentifier(string value)
+    {
+        return $"[{value.Replace("]", "]]", StringComparison.Ordinal)}]";
     }
 }

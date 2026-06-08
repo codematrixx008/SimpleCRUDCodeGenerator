@@ -14,7 +14,7 @@ public sealed class CodeGeneratorService
         new("CreateDto.tpl", "{{SolutionName}}.Domain/DTOs/Create{{EntityName}}Dto.cs"),
         new("UpdateDto.tpl", "{{SolutionName}}.Domain/DTOs/Update{{EntityName}}Dto.cs"),
         new("RepositoryInterface.tpl", "{{SolutionName}}.Domain/Interfaces/I{{EntityName}}Repository.cs"),
-        new("DbContext.tpl", "{{SolutionName}}.Infrastructure/Data/AppDbContext.cs"),
+        new("SqlConnectionFactory.tpl", "{{SolutionName}}.Infrastructure/Data/SqlConnectionFactory.cs"),
         new("Repository.tpl", "{{SolutionName}}.Infrastructure/Repositories/{{EntityName}}Repository.cs"),
         new("DependencyInjection.tpl", "{{SolutionName}}.Infrastructure/DependencyInjection.cs"),
         new("ProgramPatch.tpl", "_patches/{{SolutionName}}.Api.Program.cs.patch.txt"),
@@ -139,8 +139,8 @@ public sealed class CodeGeneratorService
             MaxLength = NormalizeMaxLength(column),
             Precision = column.Precision,
             Scale = column.Scale,
-            IncludeInCreate = !isId && !column.IsIdentity && !IsCreatedAuditColumn(propertyName),
-            IncludeInUpdate = !isId && !column.IsIdentity && !IsCreatedAuditColumn(propertyName)
+            IncludeInCreate = !isId && !column.IsIdentity && !IsAuditColumn(propertyName),
+            IncludeInUpdate = !isId && !column.IsIdentity && !IsAuditColumn(propertyName)
         };
     }
 
@@ -160,11 +160,18 @@ public sealed class CodeGeneratorService
         return column.MaxLength;
     }
 
-    private static bool IsCreatedAuditColumn(string propertyName)
+    private static bool IsAuditColumn(string propertyName)
     {
         return propertyName.Equals("CreatedDate", StringComparison.OrdinalIgnoreCase)
             || propertyName.Equals("CreatedAt", StringComparison.OrdinalIgnoreCase)
-            || propertyName.Equals("CreatedBy", StringComparison.OrdinalIgnoreCase);
+            || propertyName.Equals("CreatedBy", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Equals("UpdatedDate", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Equals("UpdatedAt", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Equals("ModifiedDate", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Equals("ModifiedAt", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Equals("UpdatedBy", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Equals("ModifiedBy", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Equals("IsDeleted", StringComparison.OrdinalIgnoreCase);
     }
 
     private static GenerationResult ToResult(

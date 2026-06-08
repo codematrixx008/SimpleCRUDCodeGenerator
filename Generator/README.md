@@ -1,6 +1,6 @@
-# Simple Employee CRUD Code Generator - 4 Project Version
+# Simple Employee CRUD Code Generator - 4 Project Dapper Version
 
-This sample follows the same high-level structure as your existing generator:
+This project follows the same high-level generator structure as your existing CodeGen solution:
 
 ```text
 CodeGen.sln
@@ -10,18 +10,33 @@ CodeGen.sln
 └── CodeGen.Infrastructure
 ```
 
-The main difference is that this version is intentionally simple. It generates only a basic CRUD module for a target solution such as `SimpleEmployeeCRUD`.
+This version is intentionally simple. It generates a basic Employee-style CRUD module for a target solution such as `SimpleEmployeeCRUD`.
 
-## What changed from the earlier JSON version
+The generated CRUD project uses **Dapper**, not Entity Framework.
 
-The generator **does not read entity fields from JSON**.
+## Generator flow
 
-It reads the schema from SQL Server through:
-
-```csharp
-CodeGen.Core.Schema.ISchemaRepository
-CodeGen.Infrastructure.Schema.SqlSchemaRepository
+```text
+POST /api/generator/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
+        ↓
+CodeGen.Api / GeneratorController
+        ↓
+CodeGen.Core / CodeGeneratorService
+        ↓
+CodeGen.Infrastructure / SqlSchemaRepository
+        ↓
+dbo.usp_GetObjectSchemas @TableName
+        ↓
+CodeGen.Core / TemplateTokenBuilder
+        ↓
+CodeGen.GenerationFiles/Templates/*.tpl
+        ↓
+CodeGen.GenerationFiles/GeneratedOutput
 ```
+
+## Schema source
+
+The generator reads table columns from SQL Server. It does not read fields from JSON.
 
 The API receives a table name:
 
@@ -29,7 +44,7 @@ The API receives a table name:
 POST /api/generator/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
 ```
 
-Then `SqlSchemaRepository` calls the configured stored procedure:
+Then `SqlSchemaRepository` calls:
 
 ```json
 "SchemaStoredProcedure": "dbo.usp_GetObjectSchemas"
@@ -42,9 +57,7 @@ The stored procedure must return two result sets:
 2. Search-result columns
 ```
 
-For this simple CRUD generator, the second result set can be the same as the first one.
-
-## Required SQL stored procedure
+For this simple CRUD generator, the second result set can be the same as the first result set.
 
 A starter script is included here:
 
@@ -52,25 +65,7 @@ A starter script is included here:
 CodeGen.GenerationFiles/Sql/usp_GetObjectSchemas.sql
 ```
 
-Run it in your SQL Server database before calling the generator.
-
-The result shape must match:
-
-```csharp
-public sealed class DbColumnSchema
-{
-    public string ColumnName { get; set; }
-    public string SqlType { get; set; }
-    public int? MaxLength { get; set; }
-    public int? Precision { get; set; }
-    public int? Scale { get; set; }
-    public bool IsNullable { get; set; }
-    public bool IsIdentity { get; set; }
-    public int OrdinalPosition { get; set; }
-}
-```
-
-## Configure database connection
+## Generator database config
 
 Edit:
 
@@ -93,11 +88,42 @@ Example:
 }
 ```
 
+## Employee table for testing
+
+Run this in the database configured above:
+
+```sql
+CREATE TABLE dbo.tblEmployee
+(
+    Id INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_tblEmployee PRIMARY KEY,
+    FirstName NVARCHAR(50) NOT NULL,
+    LastName NVARCHAR(50) NOT NULL,
+    DOB DATE NOT NULL,
+    Gender NVARCHAR(10) NOT NULL,
+    Address NVARCHAR(250) NULL,
+    CreatedDate DATETIME2(7) NOT NULL CONSTRAINT DF_tblEmployee_CreatedDate DEFAULT SYSUTCDATETIME(),
+    UpdatedDate DATETIME2(7) NULL,
+    IsDeleted BIT NOT NULL CONSTRAINT DF_tblEmployee_IsDeleted DEFAULT 0
+);
+```
+
+Then test:
+
+```sql
+EXEC dbo.usp_GetObjectSchemas @TableName = 'dbo.tblEmployee';
+```
+
 ## Run generator
 
 ```bash
 dotnet restore
 dotnet run --project CodeGen.Api
+```
+
+Swagger UI is enabled:
+
+```text
+http://localhost:5144/swagger
 ```
 
 Preview:
@@ -117,18 +143,6 @@ Generated files are written to:
 ```text
 CodeGen.GenerationFiles/GeneratedOutput
 ```
-
-## Table-name to entity-name convention
-
-Examples:
-
-```text
-dbo.tblEmployee -> Employee -> EmployeesController
-dbo.Employee    -> Employee -> EmployeesController
-tblDepartment   -> Department -> DepartmentsController
-```
-
-This simple generator expects the table to have an `Id` column. That column is used as the primary key in the generated repository and controller.
 
 ## Generated output structure
 
@@ -151,7 +165,7 @@ SimpleEmployeeCRUD.Domain
 
 SimpleEmployeeCRUD.Infrastructure
 ├── Data
-│   └── AppDbContext.cs
+│   └── SqlConnectionFactory.cs
 ├── Repositories
 │   └── EmployeeRepository.cs
 └── DependencyInjection.cs
@@ -172,9 +186,11 @@ IEmployeeRepository
     ↓
 EmployeeRepository
     ↓
-AppDbContext
+Dapper
     ↓
-SQL Server
+SqlConnectionFactory
+    ↓
+SQL Server dbo.tblEmployee
 ```
 
 ## How to copy generated files into your Visual Studio solution
@@ -213,18 +229,15 @@ into the matching Visual Studio projects.
 
 ## Required NuGet packages for generated target project
 
-In `SimpleEmployeeCRUD.Infrastructure`:
+Install these in `SimpleEmployeeCRUD.Infrastructure`:
 
 ```bash
-dotnet add SimpleEmployeeCRUD.Infrastructure package Microsoft.EntityFrameworkCore.SqlServer
-dotnet add SimpleEmployeeCRUD.Infrastructure package Microsoft.EntityFrameworkCore.Design
+dotnet add SimpleEmployeeCRUD.Infrastructure package Dapper
+dotnet add SimpleEmployeeCRUD.Infrastructure package Microsoft.Data.SqlClient
+dotnet add SimpleEmployeeCRUD.Infrastructure package Microsoft.Extensions.Configuration.Abstractions
 ```
 
-In `SimpleEmployeeCRUD.Api`:
-
-```bash
-dotnet add SimpleEmployeeCRUD.Api package Microsoft.EntityFrameworkCore.Design
-```
+No Entity Framework package is required.
 
 ## Update generated target API Program.cs
 
@@ -234,36 +247,22 @@ In `SimpleEmployeeCRUD.Api/Program.cs`, add:
 using SimpleEmployeeCRUD.Infrastructure;
 ```
 
-Before:
-
-```csharp
-var app = builder.Build();
-```
-
-add:
+Then add this before `var app = builder.Build();`:
 
 ```csharp
 builder.Services.AddInfrastructure(builder.Configuration);
 ```
 
-## Update generated target appsettings.json
+## Update generated target API appsettings.json
 
-In `SimpleEmployeeCRUD.Api/appsettings.json`, add:
+Add:
 
 ```json
-"ConnectionStrings": {
-  "DefaultConnection": "Server=.;Database=SimpleEmployeeCRUDDb;Trusted_Connection=True;TrustServerCertificate=True;"
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=.;Database=SimpleEmployeeCRUDDb;Trusted_Connection=True;TrustServerCertificate=True;"
+  }
 }
 ```
 
-## Create database tables with migrations
-
-If your generated target project should create its own database:
-
-```bash
-dotnet ef migrations add InitialCreate --project SimpleEmployeeCRUD.Infrastructure --startup-project SimpleEmployeeCRUD.Api
-
-dotnet ef database update --project SimpleEmployeeCRUD.Infrastructure --startup-project SimpleEmployeeCRUD.Api
-```
-
-If you are pointing the generated target project to an existing database/table, review the generated `AppDbContext` mapping. The template includes `ToTable(...)` and `HasColumnName(...)` mapping based on the SQL table schema.
+The generated `SqlConnectionFactory` expects the name `DefaultConnection`.
