@@ -128,7 +128,7 @@ public sealed class CodeGeneratorService
         var propertyName = _naming.NormalizeEntityName(column.ColumnName);
         var isId = propertyName.Equals("Id", StringComparison.OrdinalIgnoreCase);
 
-        return new EntityField
+        var newEntityField = new EntityField
         {
             Name = propertyName,
             ColumnName = column.ColumnName,
@@ -142,6 +142,7 @@ public sealed class CodeGeneratorService
             IncludeInCreate = !isId && !column.IsIdentity && !IsAuditColumn(propertyName),
             IncludeInUpdate = !isId && !column.IsIdentity && !IsAuditColumn(propertyName)
         };
+        return newEntityField;
     }
 
     private static int? NormalizeMaxLength(DbColumnSchema column)

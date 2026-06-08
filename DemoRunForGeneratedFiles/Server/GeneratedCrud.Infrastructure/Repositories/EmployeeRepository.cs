@@ -1,66 +1,135 @@
+using Dapper;
 using GeneratedCrud.Domain.Interfaces;
 using GeneratedCrud.Domain.Models;
 using GeneratedCrud.Infrastructure.Data;
-using Microsoft.EntityFrameworkCore;
 
 namespace GeneratedCrud.Infrastructure.Repositories;
 
 public sealed class EmployeeRepository : IEmployeeRepository
 {
-    private readonly AppDbContext _context;
+    private readonly SqlConnectionFactory _connectionFactory;
 
-    public EmployeeRepository(AppDbContext context)
+    public EmployeeRepository(SqlConnectionFactory connectionFactory)
     {
-        _context = context;
+        _connectionFactory = connectionFactory;
     }
 
     public async Task<IReadOnlyList<Employee>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        return await _context.Employees
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+        const string sql = """
+SELECT
+    [Id] AS [Id],
+    [FirstName] AS [FirstName],
+    [LastName] AS [LastName],
+    [DOB] AS [DOB],
+    [Gender] AS [Gender],
+    [Address] AS [Address],
+    [CreatedDate] AS [CreatedDate],
+    [UpdatedDate] AS [UpdatedDate],
+    [IsDeleted] AS [IsDeleted]
+FROM [dbo].[tblEmployee]
+WHERE [IsDeleted] = CAST(0 AS bit)
+ORDER BY [Id];
+""";
+
+        using var connection = _connectionFactory.CreateConnection();
+        var items = await connection.QueryAsync<Employee>(new CommandDefinition(sql, cancellationToken: cancellationToken));
+        return items.AsList();
     }
 
     public async Task<Employee?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        return await _context.Employees
-            .FirstOrDefaultAsync(x => x.Id.Equals(id), cancellationToken);
+        const string sql = """
+SELECT
+    [Id] AS [Id],
+    [FirstName] AS [FirstName],
+    [LastName] AS [LastName],
+    [DOB] AS [DOB],
+    [Gender] AS [Gender],
+    [Address] AS [Address],
+    [CreatedDate] AS [CreatedDate],
+    [UpdatedDate] AS [UpdatedDate],
+    [IsDeleted] AS [IsDeleted]
+FROM [dbo].[tblEmployee]
+WHERE [Id] = @Id AND [IsDeleted] = CAST(0 AS bit);
+""";
+
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QueryFirstOrDefaultAsync<Employee>(
+            new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
     }
 
     public async Task<Employee> CreateAsync(Employee employee, CancellationToken cancellationToken = default)
     {
-        await _context.Employees.AddAsync(employee, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
-        return employee;
+        const string sql = """
+INSERT INTO [dbo].[tblEmployee]
+(
+    [FirstName],
+    [LastName],
+    [DOB],
+    [Gender],
+    [Address]
+)
+OUTPUT
+    INSERTED.[Id] AS [Id],
+    INSERTED.[FirstName] AS [FirstName],
+    INSERTED.[LastName] AS [LastName],
+    INSERTED.[DOB] AS [DOB],
+    INSERTED.[Gender] AS [Gender],
+    INSERTED.[Address] AS [Address],
+    INSERTED.[CreatedDate] AS [CreatedDate],
+    INSERTED.[UpdatedDate] AS [UpdatedDate],
+    INSERTED.[IsDeleted] AS [IsDeleted]
+VALUES
+(
+    @FirstName,
+    @LastName,
+    @DOB,
+    @Gender,
+    @Address
+);
+""";
+
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QuerySingleAsync<Employee>(
+            new CommandDefinition(sql, employee, cancellationToken: cancellationToken));
     }
 
     public async Task<bool> UpdateAsync(Employee employee, CancellationToken cancellationToken = default)
     {
-        var exists = await _context.Employees
-            .AnyAsync(x => x.Id.Equals(employee.Id), cancellationToken);
+        const string sql = """
+UPDATE [dbo].[tblEmployee]
+SET
+    [FirstName] = @FirstName,
+    [LastName] = @LastName,
+    [DOB] = @DOB,
+    [Gender] = @Gender,
+    [Address] = @Address,
+    [UpdatedDate] = SYSUTCDATETIME()
+WHERE [Id] = @Id AND [IsDeleted] = CAST(0 AS bit);
+""";
 
-        if (!exists)
-        {
-            return false;
-        }
+        using var connection = _connectionFactory.CreateConnection();
+        var affectedRows = await connection.ExecuteAsync(
+            new CommandDefinition(sql, employee, cancellationToken: cancellationToken));
 
-        _context.Employees.Update(employee);
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
+        return affectedRows > 0;
     }
 
     public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
-        var employee = await _context.Employees
-            .FirstOrDefaultAsync(x => x.Id.Equals(id), cancellationToken);
+        const string sql = """
+UPDATE [dbo].[tblEmployee]
+SET
+    [IsDeleted] = CAST(1 AS bit),
+    [UpdatedDate] = SYSUTCDATETIME()
+WHERE [Id] = @Id AND [IsDeleted] = CAST(0 AS bit);
+""";
 
-        if (employee is null)
-        {
-            return false;
-        }
+        using var connection = _connectionFactory.CreateConnection();
+        var affectedRows = await connection.ExecuteAsync(
+            new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
 
-        _context.Employees.Remove(employee);
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
+        return affectedRows > 0;
     }
 }

@@ -45,8 +45,6 @@ public sealed class EmployeesController : ControllerBase
             DOB = request.DOB,
             Gender = request.Gender,
             Address = request.Address,
-            UpdatedDate = request.UpdatedDate,
-            IsDeleted = request.IsDeleted,
         };
 
         var created = await _repository.CreateAsync(employee, cancellationToken);
@@ -67,8 +65,6 @@ public sealed class EmployeesController : ControllerBase
         employee.DOB = request.DOB;
         employee.Gender = request.Gender;
         employee.Address = request.Address;
-        employee.UpdatedDate = request.UpdatedDate;
-        employee.IsDeleted = request.IsDeleted;
 
         var updated = await _repository.UpdateAsync(employee, cancellationToken);
         return updated ? NoContent() : NotFound();
