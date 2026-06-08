@@ -1,0 +1,9 @@
+@CodeGen.Api_HostAddress = http://localhost:5144
+
+POST {{CodeGen.Api_HostAddress}}/api/generator/preview?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
+Accept: application/json
+
+###
+
+POST {{CodeGen.Api_HostAddress}}/api/generator/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
+Accept: application/json
