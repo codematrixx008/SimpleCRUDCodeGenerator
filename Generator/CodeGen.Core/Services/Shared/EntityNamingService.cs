@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace CodeGen.Core.Services;
+namespace CodeGen.Core.Services.Shared;
 
 public sealed class EntityNamingService
 {
@@ -21,17 +21,16 @@ public sealed class EntityNamingService
         }
     }
 
-
     public void ValidateSolutionName(string solutionName)
     {
         if (string.IsNullOrWhiteSpace(solutionName))
         {
-            throw new ArgumentException("Solution name is required.", nameof(solutionName));
+            throw new ArgumentException("Solution/frontend app name is required.", nameof(solutionName));
         }
 
         if (!ValidSolutionNameRegex.IsMatch(solutionName.Trim()))
         {
-            throw new ArgumentException("Solution name can contain only letters, numbers, underscore, and dot, and cannot start with a number.", nameof(solutionName));
+            throw new ArgumentException("Solution/frontend app name can contain only letters, numbers, underscore, and dot, and cannot start with a number.", nameof(solutionName));
         }
     }
 
@@ -100,6 +99,28 @@ public sealed class EntityNamingService
         }
 
         return char.ToLowerInvariant(value[0]) + value[1..];
+    }
+
+    public string ToKebabCase(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        var normalized = NormalizeEntityName(value);
+        return Regex.Replace(normalized, "(?<!^)([A-Z])", "-$1").ToLowerInvariant();
+    }
+
+    public string ToTitleCaseWords(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        var normalized = NormalizeEntityName(value);
+        return Regex.Replace(normalized, "(?<!^)([A-Z])", " $1");
     }
 
     private static string ToPascalCase(string value)
