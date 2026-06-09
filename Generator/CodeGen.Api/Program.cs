@@ -1,6 +1,9 @@
 using CodeGen.Core.Abstractions;
 using CodeGen.Core.Schema;
 using CodeGen.Core.Services;
+using CodeGen.Core.Services.Backend;
+using CodeGen.Core.Services.Frontend;
+using CodeGen.Core.Services.Shared;
 using CodeGen.Core.Settings;
 using CodeGen.Infrastructure;
 using CodeGen.Infrastructure.Schema;
@@ -17,10 +20,18 @@ builder.Services.AddSingleton(codeGenSettings);
 builder.Services.AddSingleton<ISchemaRepository>(_ => new SqlSchemaRepository(connectionString, codeGenSettings));
 builder.Services.AddSingleton<ITemplateRepository, FileTemplateRepository>();
 builder.Services.AddSingleton<IOutputWriter, FileSystemOutputWriter>();
+
 builder.Services.AddSingleton<EntityNamingService>();
-builder.Services.AddSingleton<TemplateTokenBuilder>();
+builder.Services.AddSingleton<EntitySchemaBuilder>();
 builder.Services.AddSingleton<SimpleTemplateEngine>();
-builder.Services.AddSingleton<CodeGeneratorService>();
+
+builder.Services.AddSingleton<BackendTemplateTokenBuilder>();
+builder.Services.AddSingleton<BackendCodeGeneratorService>();
+
+builder.Services.AddSingleton<ReactTemplateTokenBuilder>();
+builder.Services.AddSingleton<FrontendCodeGeneratorService>();
+
+builder.Services.AddSingleton<FullStackCodeGeneratorService>();
 
 builder.Services.AddControllers();
 
@@ -45,10 +56,20 @@ app.MapGet("/info", () => Results.Ok(new
     name = "Simple Employee CRUD Code Generator",
     schemaSource = "SQL Server stored procedure",
     swagger = "/swagger",
+    services = new[]
+    {
+        "BackendCodeGeneratorService",
+        "FrontendCodeGeneratorService",
+        "FullStackCodeGeneratorService"
+    },
     endpoints = new[]
     {
-        "POST /api/generator/preview?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD",
-        "POST /api/generator/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD"
+        "POST /api/generator/backend/preview?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD",
+        "POST /api/generator/backend/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD",
+        "POST /api/generator/frontend/preview?tableName=dbo.tblEmployee&frontendAppName=SimpleEmployeeCRUD.React",
+        "POST /api/generator/frontend/generate?tableName=dbo.tblEmployee&frontendAppName=SimpleEmployeeCRUD.React",
+        "POST /api/generator/fullstack/preview?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD&frontendAppName=SimpleEmployeeCRUD.React",
+        "POST /api/generator/fullstack/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD&frontendAppName=SimpleEmployeeCRUD.React"
     }
 }));
 

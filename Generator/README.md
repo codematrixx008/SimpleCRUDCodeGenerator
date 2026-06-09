@@ -1,6 +1,6 @@
-# Simple Employee CRUD Code Generator - 4 Project Dapper Version
+# Simple Employee CRUD Code Generator - Backend + React Frontend
 
-This project follows the same high-level generator structure as your existing CodeGen solution:
+This project follows the same high-level 4-project generator structure as your existing CodeGen solution:
 
 ```text
 CodeGen.sln
@@ -10,28 +10,75 @@ CodeGen.sln
 └── CodeGen.Infrastructure
 ```
 
-This version is intentionally simple. It generates a basic Employee-style CRUD module for a target solution such as `SimpleEmployeeCRUD`.
+It generates simple CRUD project files from a SQL Server table schema. Backend generation uses **Dapper**, not Entity Framework. Frontend generation creates **React TypeScript** feature files.
 
-The generated CRUD project uses **Dapper**, not Entity Framework.
+## Core service structure
+
+```text
+CodeGen.Core/Services
+├── Backend
+│   ├── BackendCodeGeneratorService.cs
+│   └── BackendTemplateTokenBuilder.cs
+│
+├── Frontend
+│   ├── FrontendCodeGeneratorService.cs
+│   └── ReactTemplateTokenBuilder.cs
+│
+├── Shared
+│   ├── EntitySchemaBuilder.cs
+│   ├── EntityNamingService.cs
+│   └── SimpleTemplateEngine.cs
+│
+└── FullStackCodeGeneratorService.cs
+```
 
 ## Generator flow
 
 ```text
-POST /api/generator/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
+POST /api/generator/fullstack/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD&frontendAppName=SimpleEmployeeCRUD.React
         ↓
 CodeGen.Api / GeneratorController
         ↓
-CodeGen.Core / CodeGeneratorService
+FullStackCodeGeneratorService
         ↓
-CodeGen.Infrastructure / SqlSchemaRepository
+BackendCodeGeneratorService + FrontendCodeGeneratorService
+        ↓
+SqlSchemaRepository
         ↓
 dbo.usp_GetObjectSchemas @TableName
         ↓
-CodeGen.Core / TemplateTokenBuilder
+EntitySchemaBuilder
         ↓
-CodeGen.GenerationFiles/Templates/*.tpl
+BackendTemplateTokenBuilder / ReactTemplateTokenBuilder
+        ↓
+Backend .tpl files / React .tpl files
         ↓
 CodeGen.GenerationFiles/GeneratedOutput
+```
+
+## Template folders
+
+```text
+CodeGen.GenerationFiles/Templates
+├── Backend
+│   ├── ApiController.tpl
+│   ├── DomainModel.tpl
+│   ├── Repository.tpl
+│   └── ...
+│
+└── Frontend
+    └── ReactTs
+        ├── Model.tpl
+        ├── CreateRequest.tpl
+        ├── UpdateRequest.tpl
+        ├── ApiClient.tpl
+        ├── Service.tpl
+        ├── Form.tpl
+        ├── ListPage.tpl
+        ├── CreatePage.tpl
+        ├── EditPage.tpl
+        ├── RoutePatch.tpl
+        └── PackageNotes.tpl
 ```
 
 ## Schema source
@@ -41,7 +88,7 @@ The generator reads table columns from SQL Server. It does not read fields from 
 The API receives a table name:
 
 ```http
-POST /api/generator/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
+POST /api/generator/backend/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
 ```
 
 Then `SqlSchemaRepository` calls:
@@ -126,16 +173,34 @@ Swagger UI is enabled:
 http://localhost:5144/swagger
 ```
 
-Preview:
+## Endpoints
+
+Backward-compatible backend-only endpoints:
 
 ```http
-POST http://localhost:5144/api/generator/preview?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
+POST /api/generator/preview?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
+POST /api/generator/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
 ```
 
-Generate:
+Backend-only endpoints:
 
 ```http
-POST http://localhost:5144/api/generator/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
+POST /api/generator/backend/preview?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
+POST /api/generator/backend/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD
+```
+
+Frontend-only endpoints:
+
+```http
+POST /api/generator/frontend/preview?tableName=dbo.tblEmployee&frontendAppName=SimpleEmployeeCRUD.React
+POST /api/generator/frontend/generate?tableName=dbo.tblEmployee&frontendAppName=SimpleEmployeeCRUD.React
+```
+
+Full-stack endpoints:
+
+```http
+POST /api/generator/fullstack/preview?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD&frontendAppName=SimpleEmployeeCRUD.React
+POST /api/generator/fullstack/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD&frontendAppName=SimpleEmployeeCRUD.React
 ```
 
 Generated files are written to:
@@ -144,9 +209,9 @@ Generated files are written to:
 CodeGen.GenerationFiles/GeneratedOutput
 ```
 
-## Generated output structure
+## Generated backend output
 
-For `tableName=dbo.tblEmployee` and `solutionName=SimpleEmployeeCRUD`, output is:
+For `tableName=dbo.tblEmployee` and `solutionName=SimpleEmployeeCRUD`, backend output is:
 
 ```text
 SimpleEmployeeCRUD.Api
@@ -169,13 +234,9 @@ SimpleEmployeeCRUD.Infrastructure
 ├── Repositories
 │   └── EmployeeRepository.cs
 └── DependencyInjection.cs
-
-_patches
-├── SimpleEmployeeCRUD.Api.Program.cs.patch.txt
-└── SimpleEmployeeCRUD.Api.appsettings.json.patch.txt
 ```
 
-## Runtime flow of generated CRUD project
+Generated backend runtime flow:
 
 ```text
 HTTP request
@@ -193,7 +254,49 @@ SqlConnectionFactory
 SQL Server dbo.tblEmployee
 ```
 
-## How to copy generated files into your Visual Studio solution
+## Generated frontend output
+
+For `frontendAppName=SimpleEmployeeCRUD.React`, frontend output is:
+
+```text
+SimpleEmployeeCRUD.React/src/features/employees
+├── models
+│   ├── Employee.ts
+│   ├── CreateEmployeeRequest.ts
+│   └── UpdateEmployeeRequest.ts
+│
+├── api
+│   └── employeesApi.ts
+│
+├── services
+│   └── employeesService.ts
+│
+├── components
+│   └── EmployeeForm.tsx
+│
+└── pages
+    ├── EmployeesListPage.tsx
+    ├── CreateEmployeePage.tsx
+    └── EditEmployeePage.tsx
+```
+
+Generated frontend runtime flow:
+
+```text
+EmployeesListPage / CreateEmployeePage / EditEmployeePage
+    ↓
+EmployeeForm
+    ↓
+employeesService
+    ↓
+employeesApi
+    ↓
+fetch()
+    ↓
+/api/Employees
+```
+
+## How to copy generated backend files into your Visual Studio solution
 
 Create a new Visual Studio solution named:
 
@@ -227,7 +330,7 @@ CodeGen.GenerationFiles/GeneratedOutput/SimpleEmployeeCRUD.Infrastructure
 
 into the matching Visual Studio projects.
 
-## Required NuGet packages for generated target project
+## Required NuGet packages for generated backend target project
 
 Install these in `SimpleEmployeeCRUD.Infrastructure`:
 
@@ -239,30 +342,37 @@ dotnet add SimpleEmployeeCRUD.Infrastructure package Microsoft.Extensions.Config
 
 No Entity Framework package is required.
 
-## Update generated target API Program.cs
+## How to copy generated frontend files into your React app
 
-In `SimpleEmployeeCRUD.Api/Program.cs`, add:
+Create or open a React TypeScript app. A Vite app is a good simple target:
 
-```csharp
-using SimpleEmployeeCRUD.Infrastructure;
+```bash
+npm create vite@latest SimpleEmployeeCRUD.React -- --template react-ts
+cd SimpleEmployeeCRUD.React
+npm install
+npm install react-router-dom
 ```
 
-Then add this before `var app = builder.Build();`:
+Copy generated files from:
 
-```csharp
-builder.Services.AddInfrastructure(builder.Configuration);
+```text
+CodeGen.GenerationFiles/GeneratedOutput/SimpleEmployeeCRUD.React/src/features/employees
 ```
 
-## Update generated target API appsettings.json
+to:
 
-Add:
-
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=.;Database=SimpleEmployeeCRUDDb;Trusted_Connection=True;TrustServerCertificate=True;"
-  }
-}
+```text
+SimpleEmployeeCRUD.React/src/features/employees
 ```
 
-The generated `SqlConnectionFactory` expects the name `DefaultConnection`.
+Then apply the route patch from:
+
+```text
+CodeGen.GenerationFiles/GeneratedOutput/_patches/SimpleEmployeeCRUD.React.routes.patch.txt
+```
+
+If the backend API is running on a different origin, add `.env` in the React app:
+
+```text
+VITE_API_BASE_URL=http://localhost:5144
+```
