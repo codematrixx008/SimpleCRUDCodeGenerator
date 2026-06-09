@@ -48,12 +48,6 @@ public sealed class BackendCodeGeneratorService
         _naming = naming;
     }
 
-    public async Task<GenerationResult> PreviewAsync(string tableName, string solutionName, CancellationToken cancellationToken = default)
-    {
-        var (schema, files) = await BuildFilesAsync(tableName, solutionName, cancellationToken);
-        return ToResult(files, solutionName, tableName, schema.EntityName, filesWritten: false, includeContent: true);
-    }
-
     public async Task<GenerationResult> GenerateAsync(string tableName, string solutionName, CancellationToken cancellationToken = default)
     {
         var (schema, files) = await BuildFilesAsync(tableName, solutionName, cancellationToken);

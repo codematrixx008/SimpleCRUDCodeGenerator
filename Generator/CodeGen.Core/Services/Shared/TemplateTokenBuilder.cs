@@ -1,5 +1,6 @@
 using System.Text;
 using CodeGen.Core.Models;
+using CodeGen.Core.Services.Shared;
 
 namespace CodeGen.Core.Services;
 

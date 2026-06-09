@@ -1,6 +1,7 @@
 using CodeGen.Core.Abstractions;
 using CodeGen.Core.Models;
 using CodeGen.Core.Schema;
+using CodeGen.Core.Services.Shared;
 
 namespace CodeGen.Core.Services;
 

@@ -17,18 +17,6 @@ public sealed class FullStackCodeGeneratorService
         _frontendGenerator = frontendGenerator;
     }
 
-    public async Task<GenerationResult> PreviewAsync(
-        string tableName,
-        string solutionName,
-        string frontendAppName,
-        CancellationToken cancellationToken = default)
-    {
-        var backendResult = await _backendGenerator.PreviewAsync(tableName, solutionName, cancellationToken);
-        var frontendResult = await _frontendGenerator.PreviewAsync(tableName, frontendAppName, cancellationToken);
-
-        return MergeResults(backendResult, frontendResult, filesWritten: false);
-    }
-
     public async Task<GenerationResult> GenerateAsync(
         string tableName,
         string solutionName,
