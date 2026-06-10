@@ -9,7 +9,8 @@ const initialFormState: CreateEmployeeRequest = {
   lastName: "",
   dOB: "",
   gender: "",
-  address: null
+  address: null,
+  departmentId: null
 };
 
 export function CreateEmployeePage() {

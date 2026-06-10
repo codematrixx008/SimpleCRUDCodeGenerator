@@ -28,9 +28,10 @@ export function EditEmployeePage() {
           setForm({
         firstName: employee.firstName ?? "",
         lastName: employee.lastName ?? "",
-        dOB: employee.dOB ? employee.dOB.substring(0, 10) : "",
+        dOB: employee.dob ? employee.dob.substring(0, 10) : "",
         gender: employee.gender ?? "",
-        address: employee.address ?? null
+        address: employee.address ?? null,
+        departmentId: employee.departmentId ?? null
           });
         }
       })

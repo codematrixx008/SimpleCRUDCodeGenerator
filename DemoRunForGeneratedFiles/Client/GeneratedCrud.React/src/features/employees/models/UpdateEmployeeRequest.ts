@@ -4,4 +4,5 @@ export interface UpdateEmployeeRequest {
   dOB: string;
   gender: string;
   address?: string | null;
+  departmentId?: number | null;
 }

@@ -1,6 +1,8 @@
-import type { FormEvent } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import type { CreateEmployeeRequest } from "../models/CreateEmployeeRequest";
 import type { UpdateEmployeeRequest } from "../models/UpdateEmployeeRequest";
+import type { Department } from "../../departments/models/Department";
+import { departmentsService } from "../../departments/services/departmentsService";
 
 type EmployeeFormValue = Partial<CreateEmployeeRequest & UpdateEmployeeRequest>;
 type EmployeeFormFieldValue = string | number | boolean | null;
@@ -14,6 +16,33 @@ interface EmployeeFormProps {
 }
 
 export function EmployeeForm({ value, submitText, isSubmitting = false, onChange, onSubmit }: EmployeeFormProps) {
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoadingDepartments, setIsLoadingDepartments] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingDepartments(true);
+
+    departmentsService.getAll()
+      .then((data) => {
+        if (isMounted) {
+          setDepartments(data);
+        }
+      })
+      .catch((exception: unknown) => {
+        console.error("Failed to load Departments.", exception);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingDepartments(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <form onSubmit={onSubmit} className="crud-form">
       <div className="form-field">
@@ -64,6 +93,23 @@ export function EmployeeForm({ value, submitText, isSubmitting = false, onChange
           value={value.address ?? ""}
           onChange={(event) => onChange("address", event.target.value === "" ? null : event.target.value)}
         />
+      </div>
+      <div className="form-field">
+        <label htmlFor="departmentId">Department</label>
+        <select
+          id="departmentId"
+          name="departmentId"
+          value={value.departmentId ?? ""}
+          onChange={(event) => onChange("departmentId", event.target.value === "" ? null : Number(event.target.value))}
+          disabled={isSubmitting || isLoadingDepartments}
+        >
+          <option value="">Select Department</option>
+          {departments.map((department) => (
+            <option key={department.id} value={department.id}>
+              {department.departmentName}
+            </option>
+          ))}
+        </select>
       </div>
 
       <button type="submit" disabled={isSubmitting}>

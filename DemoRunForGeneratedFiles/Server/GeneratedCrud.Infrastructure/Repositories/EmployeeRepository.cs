@@ -18,18 +18,22 @@ public sealed class EmployeeRepository : IEmployeeRepository
     {
         const string sql = """
 SELECT
-    [Id] AS [Id],
-    [FirstName] AS [FirstName],
-    [LastName] AS [LastName],
-    [DOB] AS [DOB],
-    [Gender] AS [Gender],
-    [Address] AS [Address],
-    [CreatedDate] AS [CreatedDate],
-    [UpdatedDate] AS [UpdatedDate],
-    [IsDeleted] AS [IsDeleted]
-FROM [dbo].[tblEmployee]
-WHERE [IsDeleted] = CAST(0 AS bit)
-ORDER BY [Id];
+    e.[Id] AS [Id],
+    e.[FirstName] AS [FirstName],
+    e.[LastName] AS [LastName],
+    e.[DOB] AS [DOB],
+    e.[Gender] AS [Gender],
+    e.[Address] AS [Address],
+    e.[CreatedDate] AS [CreatedDate],
+    e.[UpdatedDate] AS [UpdatedDate],
+    e.[IsDeleted] AS [IsDeleted],
+    e.[DepartmentId] AS [DepartmentId],
+    l1.[DepartmentName] AS [DepartmentName]
+FROM [dbo].[tblEmployee] e
+LEFT JOIN [dbo].[tblDepartment] l1 ON l1.[Id] = e.[DepartmentId]
+   AND l1.[IsDeleted] = CAST(0 AS bit)
+WHERE e.[IsDeleted] = CAST(0 AS bit)
+ORDER BY e.[Id];
 """;
 
         using var connection = _connectionFactory.CreateConnection();
@@ -41,17 +45,21 @@ ORDER BY [Id];
     {
         const string sql = """
 SELECT
-    [Id] AS [Id],
-    [FirstName] AS [FirstName],
-    [LastName] AS [LastName],
-    [DOB] AS [DOB],
-    [Gender] AS [Gender],
-    [Address] AS [Address],
-    [CreatedDate] AS [CreatedDate],
-    [UpdatedDate] AS [UpdatedDate],
-    [IsDeleted] AS [IsDeleted]
-FROM [dbo].[tblEmployee]
-WHERE [Id] = @Id AND [IsDeleted] = CAST(0 AS bit);
+    e.[Id] AS [Id],
+    e.[FirstName] AS [FirstName],
+    e.[LastName] AS [LastName],
+    e.[DOB] AS [DOB],
+    e.[Gender] AS [Gender],
+    e.[Address] AS [Address],
+    e.[CreatedDate] AS [CreatedDate],
+    e.[UpdatedDate] AS [UpdatedDate],
+    e.[IsDeleted] AS [IsDeleted],
+    e.[DepartmentId] AS [DepartmentId],
+    l1.[DepartmentName] AS [DepartmentName]
+FROM [dbo].[tblEmployee] e
+LEFT JOIN [dbo].[tblDepartment] l1 ON l1.[Id] = e.[DepartmentId]
+   AND l1.[IsDeleted] = CAST(0 AS bit)
+WHERE e.[Id] = @Id AND e.[IsDeleted] = CAST(0 AS bit);
 """;
 
         using var connection = _connectionFactory.CreateConnection();
@@ -68,7 +76,8 @@ INSERT INTO [dbo].[tblEmployee]
     [LastName],
     [DOB],
     [Gender],
-    [Address]
+    [Address],
+    [DepartmentId]
 )
 OUTPUT
     INSERTED.[Id] AS [Id],
@@ -79,14 +88,16 @@ OUTPUT
     INSERTED.[Address] AS [Address],
     INSERTED.[CreatedDate] AS [CreatedDate],
     INSERTED.[UpdatedDate] AS [UpdatedDate],
-    INSERTED.[IsDeleted] AS [IsDeleted]
+    INSERTED.[IsDeleted] AS [IsDeleted],
+    INSERTED.[DepartmentId] AS [DepartmentId]
 VALUES
 (
     @FirstName,
     @LastName,
     @DOB,
     @Gender,
-    @Address
+    @Address,
+    @DepartmentId
 );
 """;
 
@@ -105,6 +116,7 @@ SET
     [DOB] = @DOB,
     [Gender] = @Gender,
     [Address] = @Address,
+    [DepartmentId] = @DepartmentId,
     [UpdatedDate] = SYSUTCDATETIME()
 WHERE [Id] = @Id AND [IsDeleted] = CAST(0 AS bit);
 """;
