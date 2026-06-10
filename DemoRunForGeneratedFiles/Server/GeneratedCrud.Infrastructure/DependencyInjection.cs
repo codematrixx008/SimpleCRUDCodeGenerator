@@ -12,6 +12,7 @@ public static class DependencyInjection
     {
         services.AddSingleton<SqlConnectionFactory>();
         services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+        services.AddScoped<IDepartmentRepository, DepartmentRepository>();
 
         return services;
     }

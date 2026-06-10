@@ -2,6 +2,9 @@ import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
 import { EmployeesListPage } from "./features/employees/pages/EmployeesListPage";
 import { CreateEmployeePage } from "./features/employees/pages/CreateEmployeePage";
 import { EditEmployeePage } from "./features/employees/pages/EditEmployeePage";
+import { DepartmentsListPage } from "./features/departments/pages/DepartmentsListPage";
+import { CreateDepartmentPage } from "./features/departments/pages/CreateDepartmentPage";
+import { EditDepartmentPage } from "./features/departments/pages/EditDepartmentPage";
 import "./App.css";
 
 function App() {
@@ -13,15 +16,21 @@ function App() {
 
           <nav>
             <Link to="/employees">Employees</Link>
+            <Link to="/departments">Departments</Link>
           </nav>
         </header>
 
         <main>
           <Routes>
             <Route path="/" element={<Navigate to="/employees" replace />} />
+
             <Route path="/employees" element={<EmployeesListPage />} />
             <Route path="/employees/create" element={<CreateEmployeePage />} />
             <Route path="/employees/:id/edit" element={<EditEmployeePage />} />
+
+            <Route path="/departments" element={<DepartmentsListPage />} />
+            <Route path="/departments/create" element={<CreateDepartmentPage />} />
+            <Route path="/departments/:id/edit" element={<EditDepartmentPage />} />
           </Routes>
         </main>
       </div>
