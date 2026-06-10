@@ -19,9 +19,9 @@ public sealed class {{EntityName}}Repository : I{{EntityName}}Repository
         const string sql = """
 SELECT
 {{SelectColumnList}}
-FROM {{TableFullName}}
-{{WhereNotDeleted}}
-ORDER BY [{{KeyColumnName}}];
+FROM {{FromAndJoinSql}}
+{{SelectWhereNotDeleted}}
+ORDER BY e.[{{KeyColumnName}}];
 """;
 
         using var connection = _connectionFactory.CreateConnection();
@@ -34,8 +34,8 @@ ORDER BY [{{KeyColumnName}}];
         const string sql = """
 SELECT
 {{SelectColumnList}}
-FROM {{TableFullName}}
-WHERE [{{KeyColumnName}}] = @Id{{AndNotDeleted}};
+FROM {{FromAndJoinSql}}
+WHERE e.[{{KeyColumnName}}] = @Id{{SelectAndNotDeleted}};
 """;
 
         using var connection = _connectionFactory.CreateConnection();
@@ -69,7 +69,7 @@ VALUES
 UPDATE {{TableFullName}}
 SET
 {{UpdateSetList}}
-WHERE [{{KeyColumnName}}] = @{{KeyName}}{{AndNotDeleted}};
+WHERE [{{KeyColumnName}}] = @{{KeyName}}{{MutationAndNotDeleted}};
 """;
 
         using var connection = _connectionFactory.CreateConnection();

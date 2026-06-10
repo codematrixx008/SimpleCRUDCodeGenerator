@@ -7,4 +7,5 @@ public sealed class EntitySchema
     public string? DbSchemaName { get; set; }
     public string DbTableName { get; set; } = string.Empty;
     public List<EntityField> Fields { get; set; } = new();
+    public List<EntityRelation> Relations { get; set; } = new();
 }

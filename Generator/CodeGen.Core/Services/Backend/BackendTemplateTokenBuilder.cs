@@ -6,6 +6,7 @@ namespace CodeGen.Core.Services.Backend;
 
 public sealed class BackendTemplateTokenBuilder
 {
+    private const string MainAlias = "e";
     private readonly EntityNamingService _naming;
 
     public BackendTemplateTokenBuilder(EntityNamingService naming)
@@ -25,9 +26,11 @@ public sealed class BackendTemplateTokenBuilder
             ?? schema.Fields.FirstOrDefault(x => x.Name.Equals("Id", StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"No primary key/Id column found for {entityName}.");
 
-        var allFields = schema.Fields.ToList();
-        var createFields = allFields.Where(x => !x.IsKey && !x.IsIdentity && x.IncludeInCreate).ToList();
-        var updateFields = allFields.Where(x => !x.IsKey && !x.IsIdentity && x.IncludeInUpdate).ToList();
+        var tableFields = schema.Fields.ToList();
+        var relationDisplayFields = BuildRelationDisplayFields(schema).ToList();
+        var readFields = MergeFields(tableFields, relationDisplayFields).ToList();
+        var createFields = tableFields.Where(x => !x.IsKey && !x.IsIdentity && x.IncludeInCreate).ToList();
+        var updateFields = tableFields.Where(x => !x.IsKey && !x.IsIdentity && x.IncludeInUpdate).ToList();
 
         if (createFields.Count == 0)
         {
@@ -50,23 +53,55 @@ public sealed class BackendTemplateTokenBuilder
             ["KeyName"] = key.Name,
             ["KeyVariable"] = _naming.ToCamelCase(key.Name),
             ["KeyColumnName"] = GetColumnName(key),
-            ["ModelProperties"] = BuildProperties(allFields),
-            ["DtoProperties"] = BuildProperties(allFields),
+            ["ModelProperties"] = BuildProperties(readFields),
+            ["DtoProperties"] = BuildProperties(readFields),
             ["CreateDtoProperties"] = BuildProperties(createFields),
             ["UpdateDtoProperties"] = BuildProperties(updateFields),
             ["CreateEntityAssignments"] = BuildCreateAssignments(createFields),
             ["UpdateEntityAssignments"] = BuildUpdateAssignments(updateFields, entityVariable),
-            ["DtoAssignments"] = BuildDtoAssignments(allFields, entityVariable),
+            ["DtoAssignments"] = BuildDtoAssignments(readFields, entityVariable),
             ["TableFullName"] = BuildTableFullName(schema),
-            ["SelectColumnList"] = BuildSelectColumnList(allFields),
+            ["FromAndJoinSql"] = BuildFromAndJoinSql(schema),
+            ["SelectColumnList"] = BuildSelectColumnList(tableFields, schema.Relations),
             ["InsertColumnList"] = BuildInsertColumnList(createFields),
             ["InsertValueList"] = BuildInsertValueList(createFields),
-            ["OutputInsertedColumnList"] = BuildOutputInsertedColumnList(allFields),
-            ["UpdateSetList"] = BuildUpdateSetList(updateFields, allFields),
-            ["WhereNotDeleted"] = BuildWhereNotDeleted(allFields),
-            ["AndNotDeleted"] = BuildAndNotDeleted(allFields),
-            ["DeleteSql"] = BuildDeleteSql(schema, key, allFields)
+            ["OutputInsertedColumnList"] = BuildOutputInsertedColumnList(tableFields),
+            ["UpdateSetList"] = BuildUpdateSetList(updateFields, tableFields),
+            ["SelectWhereNotDeleted"] = BuildWhereNotDeleted(tableFields, MainAlias),
+            ["SelectAndNotDeleted"] = BuildAndNotDeleted(tableFields, MainAlias),
+            ["MutationAndNotDeleted"] = BuildAndNotDeleted(tableFields, null),
+            ["DeleteSql"] = BuildDeleteSql(schema, key, tableFields)
         };
+    }
+
+    private static IEnumerable<EntityField> BuildRelationDisplayFields(EntitySchema schema)
+    {
+        foreach (var relation in schema.Relations)
+        {
+            yield return new EntityField
+            {
+                Name = relation.LookupDisplayProperty,
+                ColumnName = relation.LookupDisplayColumn,
+                Type = "string",
+                IsNullable = true,
+                IncludeInCreate = false,
+                IncludeInUpdate = false
+            };
+        }
+    }
+
+    private static IEnumerable<EntityField> MergeFields(IEnumerable<EntityField> tableFields, IEnumerable<EntityField> relationFields)
+    {
+        var output = tableFields.ToList();
+        foreach (var relationField in relationFields)
+        {
+            if (!output.Any(x => x.Name.Equals(relationField.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                output.Add(relationField);
+            }
+        }
+
+        return output;
     }
 
     private static string BuildProperties(IEnumerable<EntityField> fields)
@@ -117,10 +152,55 @@ public sealed class BackendTemplateTokenBuilder
         return $"{QuoteIdentifier(schema.DbSchemaName!)}.{QuoteIdentifier(tableName)}";
     }
 
-    private static string BuildSelectColumnList(IEnumerable<EntityField> fields)
+    private static string BuildFromAndJoinSql(EntitySchema schema)
     {
-        return string.Join("," + Environment.NewLine, fields.Select(field =>
-            $"    {QuoteIdentifier(GetColumnName(field))} AS {QuoteIdentifier(field.Name)}"));
+        var builder = new StringBuilder();
+        builder.Append(BuildTableFullName(schema));
+        builder.Append(' ');
+        builder.Append(MainAlias);
+
+        foreach (var relation in schema.Relations)
+        {
+            var joinType = relation.Required ? "INNER JOIN" : "LEFT JOIN";
+            builder.AppendLine();
+            builder.Append(joinType);
+            builder.Append(' ');
+            builder.Append(relation.LookupTableFullName);
+            builder.Append(' ');
+            builder.Append(relation.Alias);
+            builder.Append(" ON ");
+            builder.Append(relation.Alias);
+            builder.Append('.');
+            builder.Append(QuoteIdentifier(relation.LookupKeyColumn));
+            builder.Append(" = ");
+            builder.Append(MainAlias);
+            builder.Append('.');
+            builder.Append(QuoteIdentifier(relation.LocalColumn));
+            builder.AppendLine();
+            builder.Append("   AND ");
+            builder.Append(relation.Alias);
+            builder.Append(".[IsDeleted] = CAST(0 AS bit)");
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildSelectColumnList(IEnumerable<EntityField> fields, IEnumerable<EntityRelation> relations)
+    {
+        var selectParts = fields.Select(field =>
+            $"    {MainAlias}.{QuoteIdentifier(GetColumnName(field))} AS {QuoteIdentifier(field.Name)}").ToList();
+
+        foreach (var relation in relations)
+        {
+            if (selectParts.Any(x => x.Contains($" AS {QuoteIdentifier(relation.LookupDisplayProperty)}", StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            selectParts.Add($"    {relation.Alias}.{QuoteIdentifier(relation.LookupDisplayColumn)} AS {QuoteIdentifier(relation.LookupDisplayProperty)}");
+        }
+
+        return string.Join("," + Environment.NewLine, selectParts);
     }
 
     private static string BuildInsertColumnList(IEnumerable<EntityField> fields)
@@ -156,7 +236,7 @@ public sealed class BackendTemplateTokenBuilder
         return string.Join("," + Environment.NewLine, setParts);
     }
 
-    private static string BuildWhereNotDeleted(IEnumerable<EntityField> fields)
+    private static string BuildWhereNotDeleted(IEnumerable<EntityField> fields, string? alias)
     {
         var isDeleted = fields.FirstOrDefault(IsDeletedColumn);
         if (isDeleted is null)
@@ -164,10 +244,10 @@ public sealed class BackendTemplateTokenBuilder
             return string.Empty;
         }
 
-        return $"WHERE {QuoteIdentifier(GetColumnName(isDeleted))} = CAST(0 AS bit)";
+        return $"WHERE {BuildQualifiedColumn(alias, GetColumnName(isDeleted))} = CAST(0 AS bit)";
     }
 
-    private static string BuildAndNotDeleted(IEnumerable<EntityField> fields)
+    private static string BuildAndNotDeleted(IEnumerable<EntityField> fields, string? alias)
     {
         var isDeleted = fields.FirstOrDefault(IsDeletedColumn);
         if (isDeleted is null)
@@ -175,7 +255,7 @@ public sealed class BackendTemplateTokenBuilder
             return string.Empty;
         }
 
-        return $" AND {QuoteIdentifier(GetColumnName(isDeleted))} = CAST(0 AS bit)";
+        return $" AND {BuildQualifiedColumn(alias, GetColumnName(isDeleted))} = CAST(0 AS bit)";
     }
 
     private static string BuildDeleteSql(EntitySchema schema, EntityField key, IEnumerable<EntityField> fields)
@@ -266,6 +346,13 @@ public sealed class BackendTemplateTokenBuilder
     private static string GetColumnName(EntityField field)
     {
         return string.IsNullOrWhiteSpace(field.ColumnName) ? field.Name : field.ColumnName;
+    }
+
+    private static string BuildQualifiedColumn(string? alias, string columnName)
+    {
+        return string.IsNullOrWhiteSpace(alias)
+            ? QuoteIdentifier(columnName)
+            : $"{alias}.{QuoteIdentifier(columnName)}";
     }
 
     private static string QuoteIdentifier(string value)

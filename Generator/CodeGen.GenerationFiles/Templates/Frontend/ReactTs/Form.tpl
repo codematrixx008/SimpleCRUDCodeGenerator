@@ -1,6 +1,7 @@
-import type { FormEvent } from "react";
+{{ReactFormImport}}
 import type { Create{{EntityName}}Request } from "../models/Create{{EntityName}}Request";
 import type { Update{{EntityName}}Request } from "../models/Update{{EntityName}}Request";
+{{LookupImports}}
 
 type {{EntityName}}FormValue = Partial<Create{{EntityName}}Request & Update{{EntityName}}Request>;
 type {{EntityName}}FormFieldValue = string | number | boolean | null;
@@ -14,6 +15,8 @@ interface {{EntityName}}FormProps {
 }
 
 export function {{EntityName}}Form({ value, submitText, isSubmitting = false, onChange, onSubmit }: {{EntityName}}FormProps) {
+{{LookupStateAndEffects}}
+
   return (
     <form onSubmit={onSubmit} className="crud-form">
 {{FormInputs}}

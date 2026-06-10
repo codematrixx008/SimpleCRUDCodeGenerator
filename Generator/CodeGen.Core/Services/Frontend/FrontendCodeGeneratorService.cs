@@ -48,9 +48,23 @@ public sealed class FrontendCodeGeneratorService
         _naming = naming;
     }
 
-    public async Task<GenerationResult> GenerateAsync(string tableName, string frontendAppName, CancellationToken cancellationToken = default)
+    public async Task<GenerationResult> PreviewAsync(
+        string tableName,
+        string frontendAppName,
+        IReadOnlyList<RelationDefinition>? relations = null,
+        CancellationToken cancellationToken = default)
     {
-        var (schema, files) = await BuildFilesAsync(tableName, frontendAppName, cancellationToken);
+        var (schema, files) = await BuildFilesAsync(tableName, frontendAppName, relations, cancellationToken);
+        return ToResult(files, frontendAppName, tableName, schema.EntityName, filesWritten: false, includeContent: true);
+    }
+
+    public async Task<GenerationResult> GenerateAsync(
+        string tableName,
+        string frontendAppName,
+        IReadOnlyList<RelationDefinition>? relations = null,
+        CancellationToken cancellationToken = default)
+    {
+        var (schema, files) = await BuildFilesAsync(tableName, frontendAppName, relations, cancellationToken);
         await _outputWriter.WriteAsync(files, cancellationToken);
         return ToResult(files, frontendAppName, tableName, schema.EntityName, filesWritten: true, includeContent: false);
     }
@@ -58,13 +72,14 @@ public sealed class FrontendCodeGeneratorService
     private async Task<(EntitySchema Schema, IReadOnlyList<GeneratedFile> Files)> BuildFilesAsync(
         string tableName,
         string frontendAppName,
+        IReadOnlyList<RelationDefinition>? relations,
         CancellationToken cancellationToken)
     {
         _naming.ValidateTableName(tableName);
         _naming.ValidateSolutionName(frontendAppName);
 
         var schemaResult = await _schemaRepository.GetSchemaAsync(tableName);
-        var schema = _schemaBuilder.Build(tableName, schemaResult);
+        var schema = _schemaBuilder.Build(tableName, schemaResult, relations);
         var tokens = _tokenBuilder.Build(schema, frontendAppName);
         var files = new List<GeneratedFile>();
 

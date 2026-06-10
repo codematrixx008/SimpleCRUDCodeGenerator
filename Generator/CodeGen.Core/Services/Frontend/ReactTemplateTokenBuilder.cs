@@ -27,10 +27,12 @@ public sealed class ReactTemplateTokenBuilder
             ?? schema.Fields.FirstOrDefault(x => x.Name.Equals("Id", StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"No primary key/Id column found for {entityName}.");
 
-        var allFields = schema.Fields.ToList();
-        var createFields = allFields.Where(x => !x.IsKey && !x.IsIdentity && x.IncludeInCreate).ToList();
-        var updateFields = allFields.Where(x => !x.IsKey && !x.IsIdentity && x.IncludeInUpdate).ToList();
-        var displayFields = allFields.Where(x => !IsDeletedColumn(x)).ToList();
+        var tableFields = schema.Fields.ToList();
+        var relationDisplayFields = BuildRelationDisplayFields(schema).ToList();
+        var readFields = MergeFields(tableFields, relationDisplayFields).ToList();
+        var createFields = tableFields.Where(x => !x.IsKey && !x.IsIdentity && x.IncludeInCreate).ToList();
+        var updateFields = tableFields.Where(x => !x.IsKey && !x.IsIdentity && x.IncludeInUpdate).ToList();
+        var displayFields = MergeFields(tableFields.Where(x => !IsDeletedColumn(x)), relationDisplayFields).ToList();
 
         if (createFields.Count == 0)
         {
@@ -57,15 +59,48 @@ public sealed class ReactTemplateTokenBuilder
             ["KeyTypeTs"] = ToTypeScriptBaseType(key),
             ["RouteKeyExpression"] = BuildRouteKeyExpression(key),
             ["InvalidRouteKeyCondition"] = BuildInvalidRouteKeyCondition(key),
-            ["TsModelProperties"] = BuildTsProperties(allFields),
+            ["TsModelProperties"] = BuildTsProperties(readFields),
             ["TsCreateRequestProperties"] = BuildTsProperties(createFields),
             ["TsUpdateRequestProperties"] = BuildTsProperties(updateFields),
             ["InitialFormState"] = BuildInitialFormState(createFields),
             ["EditFormStateAssignments"] = BuildEditFormStateAssignments(updateFields, entityVariable),
-            ["FormInputs"] = BuildFormInputs(createFields),
+            ["ReactFormImport"] = BuildReactFormImport(schema),
+            ["LookupImports"] = BuildLookupImports(schema),
+            ["LookupStateAndEffects"] = BuildLookupStateAndEffects(schema),
+            ["FormInputs"] = BuildFormInputs(createFields, schema.Relations),
             ["TableHeaders"] = BuildTableHeaders(displayFields),
             ["TableCells"] = BuildTableCells(displayFields, entityVariable)
         };
+    }
+
+    private static IEnumerable<EntityField> BuildRelationDisplayFields(EntitySchema schema)
+    {
+        foreach (var relation in schema.Relations)
+        {
+            yield return new EntityField
+            {
+                Name = relation.LookupDisplayProperty,
+                ColumnName = relation.LookupDisplayColumn,
+                Type = "string",
+                IsNullable = true,
+                IncludeInCreate = false,
+                IncludeInUpdate = false
+            };
+        }
+    }
+
+    private static IEnumerable<EntityField> MergeFields(IEnumerable<EntityField> tableFields, IEnumerable<EntityField> relationFields)
+    {
+        var output = tableFields.ToList();
+        foreach (var relationField in relationFields)
+        {
+            if (!output.Any(x => x.Name.Equals(relationField.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                output.Add(relationField);
+            }
+        }
+
+        return output;
     }
 
     private string BuildTsProperties(IEnumerable<EntityField> fields)
@@ -93,11 +128,83 @@ public sealed class ReactTemplateTokenBuilder
         }));
     }
 
-    private string BuildFormInputs(IEnumerable<EntityField> fields)
+    private static string BuildReactFormImport(EntitySchema schema)
+    {
+        return schema.Relations.Count == 0
+            ? "import type { FormEvent } from \"react\";"
+            : "import { type FormEvent, useEffect, useState } from \"react\";";
+    }
+
+    private string BuildLookupImports(EntitySchema schema)
+    {
+        if (schema.Relations.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return string.Join(Environment.NewLine, schema.Relations.Select(relation =>
+            $"import type {{ {relation.LookupEntityName} }} from \"../../{relation.LookupFeatureFolder}/models/{relation.LookupEntityName}\";{Environment.NewLine}import {{ {relation.LookupEntityPluralVariable}Service }} from \"../../{relation.LookupFeatureFolder}/services/{relation.LookupEntityPluralVariable}Service\";"));
+    }
+
+    private string BuildLookupStateAndEffects(EntitySchema schema)
+    {
+        if (schema.Relations.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        foreach (var relation in schema.Relations)
+        {
+            var itemsVariable = relation.LookupEntityPluralVariable;
+            var setItems = "set" + relation.LookupEntityPlural;
+            var loadingVariable = "isLoading" + relation.LookupEntityPlural;
+            var setLoading = "setIsLoading" + relation.LookupEntityPlural;
+
+            builder.AppendLine($"  const [{itemsVariable}, {setItems}] = useState<{relation.LookupEntityName}[]>([]);");
+            builder.AppendLine($"  const [{loadingVariable}, {setLoading}] = useState(false);");
+            builder.AppendLine();
+            builder.AppendLine("  useEffect(() => {");
+            builder.AppendLine("    let isMounted = true;");
+            builder.AppendLine($"    {setLoading}(true);");
+            builder.AppendLine();
+            builder.AppendLine($"    {itemsVariable}Service.getAll()");
+            builder.AppendLine("      .then((data) => {");
+            builder.AppendLine("        if (isMounted) {");
+            builder.AppendLine($"          {setItems}(data);");
+            builder.AppendLine("        }");
+            builder.AppendLine("      })");
+            builder.AppendLine("      .catch((exception: unknown) => {");
+            builder.AppendLine($"        console.error(\"Failed to load {relation.LookupEntityPlural}.\", exception);");
+            builder.AppendLine("      })");
+            builder.AppendLine("      .finally(() => {");
+            builder.AppendLine("        if (isMounted) {");
+            builder.AppendLine($"          {setLoading}(false);");
+            builder.AppendLine("        }");
+            builder.AppendLine("      });");
+            builder.AppendLine();
+            builder.AppendLine("    return () => {");
+            builder.AppendLine("      isMounted = false;");
+            builder.AppendLine("    };");
+            builder.AppendLine("  }, []);");
+            builder.AppendLine();
+        }
+
+        return builder.ToString().TrimEnd();
+    }
+
+    private string BuildFormInputs(IEnumerable<EntityField> fields, IReadOnlyList<EntityRelation> relations)
     {
         var builder = new StringBuilder();
         foreach (var field in fields)
         {
+            var relation = relations.FirstOrDefault(x => x.LocalProperty.Equals(field.Name, StringComparison.OrdinalIgnoreCase));
+            if (relation is not null)
+            {
+                AppendLookupSelect(builder, field, relation);
+                continue;
+            }
+
             var propertyName = _naming.ToCamelCase(field.Name);
             var label = _naming.ToTitleCaseWords(field.Name);
             builder.AppendLine("      <div className=\"form-field\">");
@@ -137,6 +244,35 @@ public sealed class ReactTemplateTokenBuilder
         }
 
         return builder.ToString().TrimEnd();
+    }
+
+    private void AppendLookupSelect(StringBuilder builder, EntityField field, EntityRelation relation)
+    {
+        var propertyName = _naming.ToCamelCase(field.Name);
+        var label = _naming.ToTitleCaseWords(relation.RelationName);
+        var itemsVariable = relation.LookupEntityPluralVariable;
+        var itemVariable = _naming.ToCamelCase(relation.LookupEntityName);
+        var keyProperty = _naming.ToCamelCase(relation.LookupKeyProperty);
+        var displayProperty = _naming.ToCamelCase(relation.LookupDisplayProperty);
+        var loadingVariable = "isLoading" + relation.LookupEntityPlural;
+
+        builder.AppendLine("      <div className=\"form-field\">");
+        builder.AppendLine($"        <label htmlFor=\"{propertyName}\">{label}</label>");
+        builder.AppendLine("        <select");
+        builder.AppendLine($"          id=\"{propertyName}\"");
+        builder.AppendLine($"          name=\"{propertyName}\"");
+        builder.AppendLine($"          value={{value.{propertyName} ?? \"\"}}");
+        builder.AppendLine($"          onChange={{(event) => onChange(\"{propertyName}\", event.target.value === \"\" ? null : Number(event.target.value))}}");
+        builder.AppendLine($"          disabled={{isSubmitting || {loadingVariable}}}");
+        builder.AppendLine("        >");
+        builder.AppendLine($"          <option value=\"\">Select {relation.RelationName}</option>");
+        builder.AppendLine($"          {{{itemsVariable}.map(({itemVariable}) => (");
+        builder.AppendLine($"            <option key={{{itemVariable}.{keyProperty}}} value={{{itemVariable}.{keyProperty}}}>");
+        builder.AppendLine($"              {{{itemVariable}.{displayProperty}}}");
+        builder.AppendLine("            </option>");
+        builder.AppendLine("          ))}");
+        builder.AppendLine("        </select>");
+        builder.AppendLine("      </div>");
     }
 
     private string BuildTableHeaders(IEnumerable<EntityField> fields)

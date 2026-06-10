@@ -12,7 +12,10 @@ public sealed class EntitySchemaBuilder
         _naming = naming;
     }
 
-    public EntitySchema Build(string tableName, SchemaResult schemaResult)
+    public EntitySchema Build(
+        string tableName,
+        SchemaResult schemaResult,
+        IReadOnlyList<RelationDefinition>? relations = null)
     {
         if (schemaResult.TableColumns.Count == 0)
         {
@@ -37,7 +40,7 @@ public sealed class EntitySchemaBuilder
             throw new InvalidOperationException($"Table '{tableName}' must have an Id column for this simple CRUD generator.");
         }
 
-        return new EntitySchema
+        var schema = new EntitySchema
         {
             EntityName = entityName,
             EntityPlural = _naming.ToPlural(entityName),
@@ -45,6 +48,84 @@ public sealed class EntitySchemaBuilder
             DbTableName = tableOnlyName,
             Fields = fields
         };
+
+        schema.Relations = BuildRelations(schema, relations ?? Array.Empty<RelationDefinition>());
+        return schema;
+    }
+
+    private List<EntityRelation> BuildRelations(EntitySchema schema, IReadOnlyList<RelationDefinition> relationDefinitions)
+    {
+        var relations = new List<EntityRelation>();
+
+        for (var index = 0; index < relationDefinitions.Count; index++)
+        {
+            var relationDefinition = relationDefinitions[index];
+
+            if (string.IsNullOrWhiteSpace(relationDefinition.LocalColumn))
+            {
+                throw new ArgumentException("Relation LocalColumn is required.", nameof(relationDefinitions));
+            }
+
+            if (string.IsNullOrWhiteSpace(relationDefinition.LookupTableName))
+            {
+                throw new ArgumentException("Relation LookupTableName is required.", nameof(relationDefinitions));
+            }
+
+            if (string.IsNullOrWhiteSpace(relationDefinition.LookupDisplayColumn))
+            {
+                throw new ArgumentException("Relation LookupDisplayColumn is required.", nameof(relationDefinitions));
+            }
+
+            _naming.ValidateTableName(relationDefinition.LookupTableName);
+
+            var localProperty = _naming.NormalizeEntityName(relationDefinition.LocalColumn);
+            var localField = schema.Fields.FirstOrDefault(x =>
+                x.ColumnName.Equals(relationDefinition.LocalColumn, StringComparison.OrdinalIgnoreCase)
+                || x.Name.Equals(localProperty, StringComparison.OrdinalIgnoreCase));
+
+            if (localField is null)
+            {
+                throw new InvalidOperationException($"Relation local column '{relationDefinition.LocalColumn}' was not found in entity '{schema.EntityName}'. Add the column to the database table first.");
+            }
+
+            var (lookupSchemaName, lookupTableName) = _naming.SplitSchemaAndTableName(relationDefinition.LookupTableName);
+            lookupSchemaName ??= "dbo";
+
+            var lookupEntityName = _naming.ToEntityNameFromTableName(relationDefinition.LookupTableName);
+            var lookupEntityPlural = _naming.ToPlural(lookupEntityName);
+            var lookupKeyColumn = string.IsNullOrWhiteSpace(relationDefinition.LookupKeyColumn)
+                ? "Id"
+                : relationDefinition.LookupKeyColumn.Trim();
+
+            var lookupDisplayColumn = relationDefinition.LookupDisplayColumn.Trim();
+            var lookupDisplayProperty = _naming.NormalizeEntityName(lookupDisplayColumn);
+            var relationName = string.IsNullOrWhiteSpace(relationDefinition.RelationName)
+                ? lookupEntityName
+                : _naming.NormalizeEntityName(relationDefinition.RelationName!);
+
+            relations.Add(new EntityRelation
+            {
+                RelationName = relationName,
+                LocalColumn = localField.ColumnName,
+                LocalProperty = localField.Name,
+                LookupSchemaName = lookupSchemaName,
+                LookupTableName = lookupTableName,
+                LookupTableFullName = $"{QuoteIdentifier(lookupSchemaName)}.{QuoteIdentifier(lookupTableName)}",
+                LookupEntityName = lookupEntityName,
+                LookupEntityPlural = lookupEntityPlural,
+                LookupFeatureFolder = _naming.ToCamelCase(lookupEntityPlural),
+                LookupEntityPluralVariable = _naming.ToCamelCase(lookupEntityPlural),
+                LookupKeyColumn = lookupKeyColumn,
+                LookupKeyProperty = _naming.NormalizeEntityName(lookupKeyColumn),
+                LookupDisplayColumn = lookupDisplayColumn,
+                LookupDisplayProperty = lookupDisplayProperty,
+                LookupDisplayVariable = _naming.ToCamelCase(lookupDisplayProperty),
+                Alias = $"l{index + 1}",
+                Required = relationDefinition.Required
+            });
+        }
+
+        return relations;
     }
 
     private EntityField MapColumnToField(DbColumnSchema column)
@@ -75,12 +156,7 @@ public sealed class EntitySchemaBuilder
             return null;
         }
 
-        var type = column.SqlType.ToLowerInvariant();
-        if (type is "nvarchar" or "nchar")
-        {
-            return column.MaxLength.Value / 2;
-        }
-
+        // The included dbo.usp_GetObjectSchemas script already returns character length for nvarchar/nchar.
         return column.MaxLength;
     }
 
@@ -96,5 +172,10 @@ public sealed class EntitySchemaBuilder
             || propertyName.Equals("UpdatedBy", StringComparison.OrdinalIgnoreCase)
             || propertyName.Equals("ModifiedBy", StringComparison.OrdinalIgnoreCase)
             || propertyName.Equals("IsDeleted", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string QuoteIdentifier(string value)
+    {
+        return $"[{value.Replace("]", "]]", StringComparison.Ordinal)}]";
     }
 }

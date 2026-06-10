@@ -53,7 +53,7 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 
 app.MapGet("/info", () => Results.Ok(new
 {
-    name = "Simple Employee CRUD Code Generator",
+    name = "Simple Employee CRUD Code Generator - RelationCode",
     schemaSource = "SQL Server stored procedure",
     swagger = "/swagger",
     services = new[]
@@ -69,7 +69,11 @@ app.MapGet("/info", () => Results.Ok(new
         "POST /api/generator/frontend/preview?tableName=dbo.tblEmployee&frontendAppName=SimpleEmployeeCRUD.React",
         "POST /api/generator/frontend/generate?tableName=dbo.tblEmployee&frontendAppName=SimpleEmployeeCRUD.React",
         "POST /api/generator/fullstack/preview?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD&frontendAppName=SimpleEmployeeCRUD.React",
-        "POST /api/generator/fullstack/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD&frontendAppName=SimpleEmployeeCRUD.React"
+        "POST /api/generator/fullstack/generate?tableName=dbo.tblEmployee&solutionName=SimpleEmployeeCRUD&frontendAppName=SimpleEmployeeCRUD.React",
+        "POST /api/generator/fullstack/preview-with-relations  (JSON body)",
+        "POST /api/generator/fullstack/generate-with-relations (JSON body)",
+        "POST /api/generator/backend/generate-with-relations   (JSON body)",
+        "POST /api/generator/frontend/generate-with-relations  (JSON body)"
     }
 }));
 

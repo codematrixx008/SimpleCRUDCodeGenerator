@@ -48,9 +48,23 @@ public sealed class BackendCodeGeneratorService
         _naming = naming;
     }
 
-    public async Task<GenerationResult> GenerateAsync(string tableName, string solutionName, CancellationToken cancellationToken = default)
+    public async Task<GenerationResult> PreviewAsync(
+        string tableName,
+        string solutionName,
+        IReadOnlyList<RelationDefinition>? relations = null,
+        CancellationToken cancellationToken = default)
     {
-        var (schema, files) = await BuildFilesAsync(tableName, solutionName, cancellationToken);
+        var (schema, files) = await BuildFilesAsync(tableName, solutionName, relations, cancellationToken);
+        return ToResult(files, solutionName, tableName, schema.EntityName, filesWritten: false, includeContent: true);
+    }
+
+    public async Task<GenerationResult> GenerateAsync(
+        string tableName,
+        string solutionName,
+        IReadOnlyList<RelationDefinition>? relations = null,
+        CancellationToken cancellationToken = default)
+    {
+        var (schema, files) = await BuildFilesAsync(tableName, solutionName, relations, cancellationToken);
         await _outputWriter.WriteAsync(files, cancellationToken);
         return ToResult(files, solutionName, tableName, schema.EntityName, filesWritten: true, includeContent: false);
     }
@@ -58,13 +72,14 @@ public sealed class BackendCodeGeneratorService
     private async Task<(EntitySchema Schema, IReadOnlyList<GeneratedFile> Files)> BuildFilesAsync(
         string tableName,
         string solutionName,
+        IReadOnlyList<RelationDefinition>? relations,
         CancellationToken cancellationToken)
     {
         _naming.ValidateTableName(tableName);
         _naming.ValidateSolutionName(solutionName);
 
         var schemaResult = await _schemaRepository.GetSchemaAsync(tableName);
-        var schema = _schemaBuilder.Build(tableName, schemaResult);
+        var schema = _schemaBuilder.Build(tableName, schemaResult, relations);
         var tokens = _tokenBuilder.Build(schema, solutionName);
         var files = new List<GeneratedFile>();
 

@@ -17,14 +17,28 @@ public sealed class FullStackCodeGeneratorService
         _frontendGenerator = frontendGenerator;
     }
 
+    public async Task<GenerationResult> PreviewAsync(
+        string tableName,
+        string solutionName,
+        string frontendAppName,
+        IReadOnlyList<RelationDefinition>? relations = null,
+        CancellationToken cancellationToken = default)
+    {
+        var backendResult = await _backendGenerator.PreviewAsync(tableName, solutionName, relations, cancellationToken);
+        var frontendResult = await _frontendGenerator.PreviewAsync(tableName, frontendAppName, relations, cancellationToken);
+
+        return MergeResults(backendResult, frontendResult, filesWritten: false);
+    }
+
     public async Task<GenerationResult> GenerateAsync(
         string tableName,
         string solutionName,
         string frontendAppName,
+        IReadOnlyList<RelationDefinition>? relations = null,
         CancellationToken cancellationToken = default)
     {
-        var backendResult = await _backendGenerator.GenerateAsync(tableName, solutionName, cancellationToken);
-        var frontendResult = await _frontendGenerator.GenerateAsync(tableName, frontendAppName, cancellationToken);
+        var backendResult = await _backendGenerator.GenerateAsync(tableName, solutionName, relations, cancellationToken);
+        var frontendResult = await _frontendGenerator.GenerateAsync(tableName, frontendAppName, relations, cancellationToken);
 
         return MergeResults(backendResult, frontendResult, filesWritten: backendResult.FilesWritten && frontendResult.FilesWritten);
     }

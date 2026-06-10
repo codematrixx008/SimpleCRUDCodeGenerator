@@ -1,0 +1,15 @@
+{
+  "tableName": "dbo.tblEmployee",
+  "solutionName": "SimpleEmployeeCRUD",
+  "frontendAppName": "SimpleEmployeeCRUD.React",
+  "relations": [
+    {
+      "localColumn": "DepartmentId",
+      "lookupTableName": "dbo.tblDepartment",
+      "lookupKeyColumn": "Id",
+      "lookupDisplayColumn": "DepartmentName",
+      "relationName": "Department",
+      "required": false
+    }
+  ]
+}
