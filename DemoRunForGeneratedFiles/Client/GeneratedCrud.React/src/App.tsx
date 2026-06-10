@@ -5,6 +5,9 @@ import { EditEmployeePage } from "./features/employees/pages/EditEmployeePage";
 import { DepartmentsListPage } from "./features/departments/pages/DepartmentsListPage";
 import { CreateDepartmentPage } from "./features/departments/pages/CreateDepartmentPage";
 import { EditDepartmentPage } from "./features/departments/pages/EditDepartmentPage";
+import { DesignationsListPage } from "./features/designations/pages/DesignationsListPage";
+import { CreateDesignationPage } from "./features/designations/pages/CreateDesignationPage";
+import { EditDesignationPage } from "./features/designations/pages/EditDesignationPage";
 import "./App.css";
 
 function App() {
@@ -17,6 +20,7 @@ function App() {
           <nav>
             <Link to="/employees">Employees</Link>
             <Link to="/departments">Departments</Link>
+            <Link to="/designations">Designations</Link>
           </nav>
         </header>
 
@@ -31,6 +35,11 @@ function App() {
             <Route path="/departments" element={<DepartmentsListPage />} />
             <Route path="/departments/create" element={<CreateDepartmentPage />} />
             <Route path="/departments/:id/edit" element={<EditDepartmentPage />} />
+            
+
+            <Route path="/designations" element={<DesignationsListPage />} />
+            <Route path="/designations/create" element={<CreateDesignationPage />} />
+            <Route path="/designations/:id/edit" element={<EditDesignationPage />} />
           </Routes>
         </main>
       </div>

@@ -1,22 +1,18 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { CreateEmployeeRequest } from "../models/CreateEmployeeRequest";
-import { EmployeeForm } from "../components/EmployeeForm";
-import { employeesService } from "../services/employeesService";
+import type { CreateDesignationRequest } from "../models/CreateDesignationRequest";
+import { DesignationForm } from "../components/DesignationForm";
+import { designationsService } from "../services/designationsService";
 
-const initialFormState: CreateEmployeeRequest = {
-  firstName: "",
-  lastName: "",
-  dob: "",
-  gender: "",
-  address: null,
-  departmentId: null,
-  designationId: null
+const initialFormState: CreateDesignationRequest = {
+  designationName: "",
+  designationCode: "",
+  description: null
 };
 
-export function CreateEmployeePage() {
+export function CreateDesignationPage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState<CreateEmployeeRequest>(initialFormState);
+  const [form, setForm] = useState<CreateDesignationRequest>(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +20,7 @@ export function CreateEmployeePage() {
     setForm((current) => ({
       ...current,
       [field]: value
-    } as CreateEmployeeRequest));
+    } as CreateDesignationRequest));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -33,10 +29,10 @@ export function CreateEmployeePage() {
     setError(null);
 
     try {
-      await employeesService.create(form);
-      navigate("/employees");
+      await designationsService.create(form);
+      navigate("/designations");
     } catch (exception: unknown) {
-      setError(exception instanceof Error ? exception.message : "Failed to create Employee.");
+      setError(exception instanceof Error ? exception.message : "Failed to create Designation.");
     } finally {
       setIsSubmitting(false);
     }
@@ -44,9 +40,9 @@ export function CreateEmployeePage() {
 
   return (
     <section>
-      <h1>Create Employee</h1>
+      <h1>Create Designation</h1>
       {error && <p role="alert">{error}</p>}
-      <EmployeeForm
+      <DesignationForm
         value={form}
         submitText="Create"
         isSubmitting={isSubmitting}

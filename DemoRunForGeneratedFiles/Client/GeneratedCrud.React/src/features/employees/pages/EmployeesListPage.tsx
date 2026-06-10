@@ -70,7 +70,9 @@ export function EmployeesListPage() {
             <th>Created Date</th>
             <th>Updated Date</th>
             <th>Department Id</th>
+            <th>Designation Id</th>
             <th>Department Name</th>
+            <th>Designation Name</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -86,7 +88,9 @@ export function EmployeesListPage() {
             <td>{formatDisplayValue(employee.createdDate)}</td>
             <td>{formatDisplayValue(employee.updatedDate)}</td>
             <td>{formatDisplayValue(employee.departmentId)}</td>
+            <td>{formatDisplayValue(employee.designationId)}</td>
             <td>{formatDisplayValue(employee.departmentName)}</td>
+            <td>{formatDisplayValue(employee.designationName)}</td>
               <td>
                 <Link to={`/employees/${employee.id}/edit`}>Edit</Link>{" "}
                 <button type="button" onClick={() => handleDelete(employee.id)}>

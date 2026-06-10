@@ -3,6 +3,8 @@ import type { CreateEmployeeRequest } from "../models/CreateEmployeeRequest";
 import type { UpdateEmployeeRequest } from "../models/UpdateEmployeeRequest";
 import type { Department } from "../../departments/models/Department";
 import { departmentsService } from "../../departments/services/departmentsService";
+import type { Designation } from "../../designations/models/Designation";
+import { designationsService } from "../../designations/services/designationsService";
 
 type EmployeeFormValue = Partial<CreateEmployeeRequest & UpdateEmployeeRequest>;
 type EmployeeFormFieldValue = string | number | boolean | null;
@@ -43,6 +45,33 @@ export function EmployeeForm({ value, submitText, isSubmitting = false, onChange
     };
   }, []);
 
+  const [designations, setDesignations] = useState<Designation[]>([]);
+  const [isLoadingDesignations, setIsLoadingDesignations] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingDesignations(true);
+
+    designationsService.getAll()
+      .then((data) => {
+        if (isMounted) {
+          setDesignations(data);
+        }
+      })
+      .catch((exception: unknown) => {
+        console.error("Failed to load Designations.", exception);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingDesignations(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <form onSubmit={onSubmit} className="crud-form">
       <div className="form-field">
@@ -71,7 +100,7 @@ export function EmployeeForm({ value, submitText, isSubmitting = false, onChange
           id="dOB"
           name="dOB"
           type="date"
-          value={(value.dOB ?? "").substring(0, 10)}
+          value={(value.dob ?? "").substring(0, 10)}
           onChange={(event) => onChange("dOB", event.target.value)}
         />
       </div>
@@ -107,6 +136,23 @@ export function EmployeeForm({ value, submitText, isSubmitting = false, onChange
           {departments.map((department) => (
             <option key={department.id} value={department.id}>
               {department.departmentName}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="form-field">
+        <label htmlFor="designationId">Designation</label>
+        <select
+          id="designationId"
+          name="designationId"
+          value={value.designationId ?? ""}
+          onChange={(event) => onChange("designationId", event.target.value === "" ? null : Number(event.target.value))}
+          disabled={isSubmitting || isLoadingDesignations}
+        >
+          <option value="">Select Designation</option>
+          {designations.map((designation) => (
+            <option key={designation.id} value={designation.id}>
+              {designation.designationName}
             </option>
           ))}
         </select>

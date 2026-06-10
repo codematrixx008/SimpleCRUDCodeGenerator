@@ -1,44 +1,40 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { UpdateEmployeeRequest } from "../models/UpdateEmployeeRequest";
-import { EmployeeForm } from "../components/EmployeeForm";
-import { employeesService } from "../services/employeesService";
+import type { UpdateDesignationRequest } from "../models/UpdateDesignationRequest";
+import { DesignationForm } from "../components/DesignationForm";
+import { designationsService } from "../services/designationsService";
 
-export function EditEmployeePage() {
+export function EditDesignationPage() {
   const { id: idParam } = useParams();
   const id = Number(idParam);
   const navigate = useNavigate();
-  const [form, setForm] = useState<UpdateEmployeeRequest | null>(null);
+  const [form, setForm] = useState<UpdateDesignationRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!idParam || Number.isNaN(id)) {
-      setError("Invalid Employee id.");
+      setError("Invalid Designation id.");
       setIsLoading(false);
       return;
     }
 
     let isMounted = true;
 
-    employeesService.getById(id)
-      .then((employee) => {
+    designationsService.getById(id)
+      .then((designation) => {
         if (isMounted) {
           setForm({
-        firstName: employee.firstName ?? "",
-        lastName: employee.lastName ?? "",
-        dob: employee.dob ? employee.dob.substring(0, 10) : "",
-        gender: employee.gender ?? "",
-        address: employee.address ?? null,
-        departmentId: employee.departmentId ?? null,
-        designationId: employee.designationId ?? null
+        designationName: designation.designationName ?? "",
+        designationCode: designation.designationCode ?? "",
+        description: designation.description ?? null
           });
         }
       })
       .catch((exception: unknown) => {
         if (isMounted) {
-          setError(exception instanceof Error ? exception.message : "Failed to load Employee.");
+          setError(exception instanceof Error ? exception.message : "Failed to load Designation.");
         }
       })
       .finally(() => {
@@ -56,7 +52,7 @@ export function EditEmployeePage() {
     setForm((current) => ({
       ...current,
       [field]: value
-    } as UpdateEmployeeRequest));
+    } as UpdateDesignationRequest));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -70,17 +66,17 @@ export function EditEmployeePage() {
     setError(null);
 
     try {
-      await employeesService.update(id, form);
-      navigate("/employees");
+      await designationsService.update(id, form);
+      navigate("/designations");
     } catch (exception: unknown) {
-      setError(exception instanceof Error ? exception.message : "Failed to update Employee.");
+      setError(exception instanceof Error ? exception.message : "Failed to update Designation.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
   if (isLoading) {
-    return <p>Loading Employee...</p>;
+    return <p>Loading Designation...</p>;
   }
 
   if (error) {
@@ -88,13 +84,13 @@ export function EditEmployeePage() {
   }
 
   if (!form) {
-    return <p>Employee not found.</p>;
+    return <p>Designation not found.</p>;
   }
 
   return (
     <section>
-      <h1>Edit Employee</h1>
-      <EmployeeForm
+      <h1>Edit Designation</h1>
+      <DesignationForm
         value={form}
         submitText="Save"
         isSubmitting={isSubmitting}

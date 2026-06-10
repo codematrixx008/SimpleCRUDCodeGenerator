@@ -9,5 +9,7 @@ export interface Employee {
   updatedDate?: string | null;
   isDeleted: boolean;
   departmentId?: number | null;
+  designationId?: number | null;
   departmentName?: string | null;
+  designationName?: string | null;
 }

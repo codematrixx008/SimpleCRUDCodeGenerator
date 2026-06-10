@@ -28,10 +28,14 @@ SELECT
     e.[UpdatedDate] AS [UpdatedDate],
     e.[IsDeleted] AS [IsDeleted],
     e.[DepartmentId] AS [DepartmentId],
-    l1.[DepartmentName] AS [DepartmentName]
+    e.[DesignationId] AS [DesignationId],
+    l1.[DepartmentName] AS [DepartmentName],
+    l2.[DesignationName] AS [DesignationName]
 FROM [dbo].[tblEmployee] e
 LEFT JOIN [dbo].[tblDepartment] l1 ON l1.[Id] = e.[DepartmentId]
    AND l1.[IsDeleted] = CAST(0 AS bit)
+LEFT JOIN [dbo].[tblDesignation] l2 ON l2.[Id] = e.[DesignationId]
+   AND l2.[IsDeleted] = CAST(0 AS bit)
 WHERE e.[IsDeleted] = CAST(0 AS bit)
 ORDER BY e.[Id];
 """;
@@ -55,10 +59,14 @@ SELECT
     e.[UpdatedDate] AS [UpdatedDate],
     e.[IsDeleted] AS [IsDeleted],
     e.[DepartmentId] AS [DepartmentId],
-    l1.[DepartmentName] AS [DepartmentName]
+    e.[DesignationId] AS [DesignationId],
+    l1.[DepartmentName] AS [DepartmentName],
+    l2.[DesignationName] AS [DesignationName]
 FROM [dbo].[tblEmployee] e
 LEFT JOIN [dbo].[tblDepartment] l1 ON l1.[Id] = e.[DepartmentId]
    AND l1.[IsDeleted] = CAST(0 AS bit)
+LEFT JOIN [dbo].[tblDesignation] l2 ON l2.[Id] = e.[DesignationId]
+   AND l2.[IsDeleted] = CAST(0 AS bit)
 WHERE e.[Id] = @Id AND e.[IsDeleted] = CAST(0 AS bit);
 """;
 
@@ -77,7 +85,8 @@ INSERT INTO [dbo].[tblEmployee]
     [DOB],
     [Gender],
     [Address],
-    [DepartmentId]
+    [DepartmentId],
+    [DesignationId]
 )
 OUTPUT
     INSERTED.[Id] AS [Id],
@@ -89,7 +98,8 @@ OUTPUT
     INSERTED.[CreatedDate] AS [CreatedDate],
     INSERTED.[UpdatedDate] AS [UpdatedDate],
     INSERTED.[IsDeleted] AS [IsDeleted],
-    INSERTED.[DepartmentId] AS [DepartmentId]
+    INSERTED.[DepartmentId] AS [DepartmentId],
+    INSERTED.[DesignationId] AS [DesignationId]
 VALUES
 (
     @FirstName,
@@ -97,7 +107,8 @@ VALUES
     @DOB,
     @Gender,
     @Address,
-    @DepartmentId
+    @DepartmentId,
+    @DesignationId
 );
 """;
 
@@ -117,6 +128,7 @@ SET
     [Gender] = @Gender,
     [Address] = @Address,
     [DepartmentId] = @DepartmentId,
+    [DesignationId] = @DesignationId,
     [UpdatedDate] = SYSUTCDATETIME()
 WHERE [Id] = @Id AND [IsDeleted] = CAST(0 AS bit);
 """;

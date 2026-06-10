@@ -46,6 +46,7 @@ public sealed class EmployeesController : ControllerBase
             Gender = request.Gender,
             Address = request.Address,
             DepartmentId = request.DepartmentId,
+            DesignationId = request.DesignationId,
         };
 
         var created = await _repository.CreateAsync(employee, cancellationToken);
@@ -67,6 +68,7 @@ public sealed class EmployeesController : ControllerBase
         employee.Gender = request.Gender;
         employee.Address = request.Address;
         employee.DepartmentId = request.DepartmentId;
+        employee.DesignationId = request.DesignationId;
 
         var updated = await _repository.UpdateAsync(employee, cancellationToken);
         return updated ? NoContent() : NotFound();
@@ -93,7 +95,9 @@ public sealed class EmployeesController : ControllerBase
             UpdatedDate = employee.UpdatedDate,
             IsDeleted = employee.IsDeleted,
             DepartmentId = employee.DepartmentId,
+            DesignationId = employee.DesignationId,
             DepartmentName = employee.DepartmentName,
+            DesignationName = employee.DesignationName,
         };
     }
 }

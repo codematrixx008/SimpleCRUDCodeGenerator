@@ -12,5 +12,7 @@ public sealed class Employee
     public DateTime? UpdatedDate { get; set; }
     public bool IsDeleted { get; set; }
     public int? DepartmentId { get; set; }
+    public int? DesignationId { get; set; }
     public string? DepartmentName { get; set; }
+    public string? DesignationName { get; set; }
 }
